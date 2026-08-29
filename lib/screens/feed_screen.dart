@@ -847,16 +847,17 @@ class _Hero extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Top meta row. The badge cluster absorbs all the
-                        // leftover space itself (Expanded + horizontal
-                        // scroll) so a long combination (type + reporter
-                        // badge) shrinks/scrolls instead of overflowing.
-                        Row(children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                        // Top meta row. Badges wrap to a second line when
+                        // a long type + reporter combination doesn't fit one
+                        // line, rather than clipping or forcing an overflow.
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(
@@ -872,30 +873,28 @@ class _Hero extends StatelessWidget {
                                             letterSpacing: 0.6,
                                             color: Colors.black)),
                                   ),
-                                  const SizedBox(width: 8),
                                   _TypeChip(type: item.newsType, onDark: true),
-                                  if (reporterMeta(item) != null) ...[
-                                    const SizedBox(width: 10),
+                                  if (reporterMeta(item) != null)
                                     _ReporterBadge(item: item, onDark: true),
-                                  ],
                                 ],
                               ),
                             ),
-                          ),
-                          if (timeframeLabel(item.timeframe) != null)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Text(timeframeLabel(item.timeframe)!,
-                                  style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.6,
-                                      color: LT.accent)),
-                            ),
-                          Text(relativeTime(item.publishedAt),
-                              style: const TextStyle(
-                                  fontSize: 12, color: Color(0xFFB9C0CC))),
-                        ]),
+                            const SizedBox(width: 8),
+                            if (timeframeLabel(item.timeframe) != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Text(timeframeLabel(item.timeframe)!,
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.6,
+                                        color: LT.accent)),
+                              ),
+                            Text(relativeTime(item.publishedAt),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Color(0xFFB9C0CC))),
+                          ],
+                        ),
                         // Headline + context pinned to the bottom, NFL-style.
                         const Spacer(),
                         Text(
