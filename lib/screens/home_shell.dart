@@ -46,11 +46,13 @@ class HomeShell extends StatelessWidget {
                   labelColor: LT.accent,
                   unselectedLabelColor: LT.textDim,
                   indicatorColor: LT.accent,
-                  labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  labelPadding: EdgeInsets.symmetric(horizontal: 4),
+                  labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                   tabs: [
-                    Tab(text: 'Front Office'),
-                    Tab(text: 'LeagueTap'),
-                    Tab(text: 'Gameplan'),
+                    Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('Front Office'))),
+                    Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('LeagueTap'))),
+                    Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('Gameplan'))),
                   ],
                 ),
                 const Divider(height: 1, color: LT.border),
@@ -158,7 +160,7 @@ class _BottomNav extends StatelessWidget {
     }
 
     return Container(
-      height: 72,
+      height: 78,
       decoration: const BoxDecoration(
         color: LT.bg,
         border: Border(top: BorderSide(color: LT.border)),

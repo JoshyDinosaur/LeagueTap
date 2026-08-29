@@ -847,29 +847,41 @@ class _Hero extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Top meta row.
+                        // Top meta row. The badge cluster absorbs all the
+                        // leftover space itself (Expanded + horizontal
+                        // scroll) so a long combination (type + reporter
+                        // badge) shrinks/scrolls instead of overflowing.
                         Row(children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: LT.accent,
-                              borderRadius: BorderRadius.circular(5),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: LT.accent,
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    child: const Text('FEATURED',
+                                        style: TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.6,
+                                            color: Colors.black)),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _TypeChip(type: item.newsType, onDark: true),
+                                  if (reporterMeta(item) != null) ...[
+                                    const SizedBox(width: 10),
+                                    _ReporterBadge(item: item, onDark: true),
+                                  ],
+                                ],
+                              ),
                             ),
-                            child: const Text('FEATURED',
-                                style: TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.6,
-                                    color: Colors.black)),
                           ),
-                          const SizedBox(width: 8),
-                          _TypeChip(type: item.newsType, onDark: true),
-                          if (reporterMeta(item) != null) ...[
-                            const SizedBox(width: 10),
-                            _ReporterBadge(item: item, onDark: true),
-                          ],
-                          const Spacer(),
                           if (timeframeLabel(item.timeframe) != null)
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
