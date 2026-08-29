@@ -6,6 +6,7 @@ import '../models/matchup_models.dart';
 import '../services/game_context_service.dart';
 import '../services/matchup_service.dart';
 import '../theme.dart';
+import 'feed_screen.dart' show OpponentNewsRow;
 
 /// Matchup + per-team game context bundled for the Gameplan tab.
 class GameplanData {
@@ -97,6 +98,9 @@ class _GameplanTabState extends State<GameplanTab>
               const SizedBox(height: 8),
               _section('Your opponent', 'Who you’re up against'),
               _OpponentBlock(ctx: ctx),
+              const SizedBox(height: 8),
+              _section('Opponent News', 'Scout their roster before you set your lineup'),
+              OpponentNewsRow(leagueId: widget.leagueId, userId: widget.userId, sidePad: 20),
             ],
           );
         },

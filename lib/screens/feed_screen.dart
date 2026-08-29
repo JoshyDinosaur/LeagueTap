@@ -3,10 +3,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config.dart';
 import '../models/feed_models.dart';
-import '../models/league_feed_models.dart';
 import '../models/opponent_news_models.dart';
 import '../services/feed_service.dart';
-import '../services/league_feed_service.dart';
 import '../services/opponent_news_service.dart';
 import '../theme.dart';
 
@@ -191,8 +189,8 @@ class _FrontOfficeTabState extends State<FrontOfficeTab>
     _future = _load();
   }
 
-  // League-wide news now lives in the Trending carousel (get-league-feed), so we
-  // no longer request the get-feed league feed here.
+  // League-wide news lives on its own LeagueTap tab (get-league-feed), so we
+  // only request the team-scoped get-feed here.
   Future<FeedResult> _load() => _service.getFeed(
         playerIds: widget.playerIds,
         starterIds: widget.starterIds,
@@ -247,30 +245,6 @@ class _FrontOfficeTabState extends State<FrontOfficeTab>
     );
   }
 
-  // Both carousels framed inside one bordered, softly-glowing panel.
-  Widget _carouselsPanel(EdgeInsetsGeometry margin) {
-    final lid = widget.leagueId;
-    if (lid == null) return const SizedBox.shrink();
-    final uid = widget.userId;
-    return Container(
-      margin: margin,
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: LT.border),
-        boxShadow: LT.glow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _TrendingRow(leagueId: lid, sidePad: 14),
-          if (uid != null)
-            _OpponentNewsRow(leagueId: lid, userId: uid, sidePad: 14),
-        ],
-      ),
-    );
-  }
-
   Widget _emptyTeam() => const Padding(
         padding: EdgeInsets.fromLTRB(20, 40, 20, 24),
         child: Column(children: [
@@ -285,10 +259,8 @@ class _FrontOfficeTabState extends State<FrontOfficeTab>
         ]),
       );
 
-  // NFL.com-style layout. Wide (web): the main column (hero + Trending +
-  // Opponent News carousels) sits left, the "FOR YOUR TEAM" rail on the right,
-  // so the carousels span only up to the rail. Narrow (mobile): everything
-  // stacks full-width.
+  // NFL.com-style layout. Wide (web): the hero sits left, the "FOR YOUR TEAM"
+  // rail on the right. Narrow (mobile): everything stacks full-width.
   List<Widget> _teamSlivers(List<FeedItem> team) {
     final hero = team.isNotEmpty ? team.first : null;
     final rest = team.length > 1 ? team.skip(1).toList() : const <FeedItem>[];
@@ -316,7 +288,6 @@ class _FrontOfficeTabState extends State<FrontOfficeTab>
                                 aspectRatio: 1.5)
                           else
                             _emptyTeam(),
-                          _carouselsPanel(const EdgeInsets.only(top: 14)),
                         ],
                       ),
                     ),
@@ -348,7 +319,6 @@ class _FrontOfficeTabState extends State<FrontOfficeTab>
                       onToggleOffseason: _setOffseason,
                     ),
                   ),
-                _carouselsPanel(const EdgeInsets.fromLTRB(20, 14, 20, 0)),
               ],
             );
           },
@@ -359,7 +329,7 @@ class _FrontOfficeTabState extends State<FrontOfficeTab>
 }
 
 // ---------------------------------------------------------------------------
-// NFL.com-style section header + horizontal carousels (Trending, Opponent News)
+// NFL.com-style section header + horizontal carousel (Opponent News, used by Gameplan)
 // ---------------------------------------------------------------------------
 
 // A horizontal carousel with an NFL-style header: title left, "X of N" pager +
@@ -578,112 +548,19 @@ class _CatBackdrop extends StatelessWidget {
   }
 }
 
-// ---- Trending (league-wide news from get-league-feed) ----
-class _TrendingRow extends StatefulWidget {
-  final String leagueId;
-  final double sidePad;
-  const _TrendingRow({required this.leagueId, this.sidePad = 20});
-
-  @override
-  State<_TrendingRow> createState() => _TrendingRowState();
-}
-
-class _TrendingRowState extends State<_TrendingRow>
-    with AutomaticKeepAliveClientMixin {
-  final _service = LeagueFeedService();
-  late Future<List<LeagueFeedItem>> _future;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _service.get(widget.leagueId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return FutureBuilder<List<LeagueFeedItem>>(
-      future: _future,
-      builder: (context, snap) {
-        final items = snap.data ?? const [];
-        if (snap.connectionState != ConnectionState.waiting && items.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-              height: 130,
-              child: Center(child: CircularProgressIndicator(color: LT.accent)));
-        }
-        return _Carousel(
-          title: 'Trending',
-          subtitle: 'Top stories across your league',
-          count: items.length,
-          sidePad: widget.sidePad,
-          itemBuilder: (_, i) => _TrendingCard(item: items[i]),
-        );
-      },
-    );
-  }
-}
-
-class _TrendingCard extends StatelessWidget {
-  final LeagueFeedItem item;
-  const _TrendingCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => openItem(item.url),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CatBackdrop(newsType: item.newsType, height: 120),
-          const SizedBox(height: 10),
-          if (item.reporter != null) ...[
-            _ReporterChip(reporter: item.reporter!, name: item.reporterName),
-            const SizedBox(height: 6),
-          ],
-          Text(
-            item.blurb?.isNotEmpty == true ? item.blurb! : item.headline,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 14,
-                height: 1.3,
-                fontWeight: FontWeight.w600,
-                color: LT.text),
-          ),
-          const SizedBox(height: 6),
-          if (item.affected.isNotEmpty)
-            Text(item.affected.first.manager,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: LT.accent)),
-        ],
-      ),
-    );
-  }
-}
-
 // ---- Opponent News (news about this week's matchup opponent) ----
-class _OpponentNewsRow extends StatefulWidget {
+class OpponentNewsRow extends StatefulWidget {
   final String leagueId;
   final String userId;
   final double sidePad;
-  const _OpponentNewsRow(
+  const OpponentNewsRow(
       {required this.leagueId, required this.userId, this.sidePad = 20});
 
   @override
-  State<_OpponentNewsRow> createState() => _OpponentNewsRowState();
+  State<OpponentNewsRow> createState() => _OpponentNewsRowState();
 }
 
-class _OpponentNewsRowState extends State<_OpponentNewsRow>
+class _OpponentNewsRowState extends State<OpponentNewsRow>
     with AutomaticKeepAliveClientMixin {
   final _service = OpponentNewsService();
   late Future<OpponentNews> _future;

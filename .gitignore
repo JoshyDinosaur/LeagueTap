@@ -53,3 +53,6 @@ node_modules/
 # Env files (never commit secrets)
 .env
 .env.*
+
+# Scratch (can't delete via device bridge, keep out of tracking)
+_to_delete/

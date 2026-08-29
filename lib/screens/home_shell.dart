@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 import 'feed_screen.dart';
+import 'gameplan_screen.dart';
+import 'league_home_screen.dart';
 
 /// Top-level shell: shared header + the Front Office home page + bottom nav.
 class HomeShell extends StatelessWidget {
@@ -27,29 +29,49 @@ class HomeShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LT.bg,
-      // Mobile app keeps the bottom nav; the web build (LeagueTap.com) drops it.
-      bottomNavigationBar: kIsWeb ? null : const _BottomNav(),
-      body: Container(
-        decoration: const BoxDecoration(gradient: LT.bgGradient),
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              _header(),
-              const Divider(height: 1, color: LT.border),
-              Expanded(
-                child: FrontOfficeTab(
-                  playerIds: playerIds,
-                  starterIds: starterIds,
-                  leaguePlayerIds: leaguePlayerIds,
-                  leagueId: leagueId,
-                  userId: userId,
-                  teamName: teamName,
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: LT.bg,
+        // Mobile app keeps the bottom nav; the web build (LeagueTap.com) drops it.
+        bottomNavigationBar: kIsWeb ? null : const _BottomNav(),
+        body: Container(
+          decoration: const BoxDecoration(gradient: LT.bgGradient),
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _header(),
+                const TabBar(
+                  labelColor: LT.accent,
+                  unselectedLabelColor: LT.textDim,
+                  indicatorColor: LT.accent,
+                  labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  tabs: [
+                    Tab(text: 'Front Office'),
+                    Tab(text: 'LeagueTap'),
+                    Tab(text: 'Gameplan'),
+                  ],
                 ),
-              ),
-            ],
+                const Divider(height: 1, color: LT.border),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      FrontOfficeTab(
+                        playerIds: playerIds,
+                        starterIds: starterIds,
+                        leaguePlayerIds: leaguePlayerIds,
+                        leagueId: leagueId,
+                        userId: userId,
+                        teamName: teamName,
+                      ),
+                      LeagueHomeTab(leagueId: leagueId),
+                      GameplanTab(leagueId: leagueId, userId: userId),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
