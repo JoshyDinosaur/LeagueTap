@@ -56,3 +56,7 @@ node_modules/
 
 # Scratch (can't delete via device bridge, keep out of tracking)
 _to_delete/
+
+# Supabase CLI local cache (link state, no secrets, but noisy/regenerated)
+supabase/.temp/
+supabase/supabase/

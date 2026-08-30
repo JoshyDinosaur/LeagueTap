@@ -193,6 +193,10 @@ async function leagueBlurb(
     `${persona.voice}\n\n` +
     `AUTHORITATIVE league context — current and correct; TRUST IT over the article and over your ` +
     `own assumptions about which team a player is on: affected fantasy team(s): ${who}.\n` +
+    `The text in quotes after "is on" is a FANTASY TEAM's user-chosen display name, not a player -- ` +
+    `it may coincidentally contain or resemble a real player's surname (e.g. a team called "Nix's ` +
+    `Nation" is not about a player named Nix). Never write your take about a name that appears only ` +
+    `inside a quoted team name; your subject is always the player named BEFORE "is on".\n` +
     `${mentionedLine}` +
     `Headline: ${headline}\nDetails: ${body}\n\n` +
     `Your take is about the affected league player(s) above and ONLY them. Any OTHER athletes named ` +
