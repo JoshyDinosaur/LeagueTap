@@ -6,9 +6,6 @@ workflows:
     integrations:
       app_store_connect: codemagic  # name of the App Store Connect API key you add in Codemagic > Teams > Integrations
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.leaguetap.leaguetap
       vars:
         BUNDLE_ID: "com.leaguetap.leaguetap"
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
@@ -24,6 +21,15 @@ workflows:
           include: true
           source: true
     scripts:
+      - name: Initialize keychain
+        script: keychain initialize
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add certificates to keychain
+        script: keychain add-certificates
       - name: Set up code signing settings on Xcode project
         script: xcode-project use-profiles
       - name: Get Flutter packages
