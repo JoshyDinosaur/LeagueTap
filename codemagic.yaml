@@ -1,0 +1,56 @@
+workflows:
+  ios-testflight:
+    name: LeagueTap iOS - TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: codemagic  # name of the App Store Connect API key you add in Codemagic > Teams > Integrations
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.leaguetap.leaguetap
+      vars:
+        BUNDLE_ID: "com.leaguetap.leaguetap"
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: master
+          include: true
+          source: true
+    scripts:
+      - name: Set up code signing settings on Xcode project
+        script: xcode-project use-profiles
+      - name: Get Flutter packages
+        script: flutter packages pub get
+      - name: Install CocoaPods dependencies
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      - name: Flutter build number bump
+        script: |
+          #!/bin/sh
+          set -e
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$BUNDLE_ID" || echo 0)
+          NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          echo "Next build number: $NEXT_BUILD_NUMBER"
+          flutter build ipa --release \
+            --build-number=$NEXT_BUILD_NUMBER \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Uncomment once you're ready to let builds skip straight to your
+        # existing external testers group without you tapping anything in
+        # App Store Connect:
+        # beta_groups:
+        #   - "App Store Connect Users"

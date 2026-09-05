@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../services/league_session.dart';
+import '../services/session_store.dart';
+import '../services/sleeper_service.dart';
 import '../theme.dart';
+import 'home_shell.dart';
 import 'onboarding_screen.dart';
 
 /// Splash: oversized "LT" letterforms bleeding off the edges on black — a bold,
@@ -38,9 +42,44 @@ class _SplashScreenState extends State<SplashScreen>
   void _go() {
     if (_navigated) return;
     _navigated = true;
+    _resume();
+  }
+
+  // Try to restore a saved session (skip onboarding); fall back to it on
+  // any failure — a stale/expired league, no connection, or first launch.
+  Future<void> _resume() async {
+    Widget destination = const OnboardingScreen();
+    final saved = await SessionStore.load();
+    if (saved != null) {
+      final sleeper = SleeperService();
+      try {
+        final loaded = await loadLeagueForUser(
+          sleeper: sleeper,
+          userId: saved.userId,
+          leagueId: saved.leagueId,
+          leagueName: saved.leagueName,
+        );
+        destination = HomeShell(
+          username: saved.username,
+          leagueName: loaded.leagueName,
+          leagueId: loaded.leagueId,
+          userId: loaded.userId,
+          teamName: loaded.teamName,
+          playerIds: loaded.playerIds,
+          starterIds: loaded.starterIds,
+          leaguePlayerIds: loaded.leaguePlayerIds,
+        );
+      } catch (_) {
+        await SessionStore.clear();
+        destination = const OnboardingScreen();
+      } finally {
+        sleeper.dispose();
+      }
+    }
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 500),
-      pageBuilder: (_, __, ___) => const OnboardingScreen(),
+      pageBuilder: (_, __, ___) => destination,
       transitionsBuilder: (_, anim, __, child) =>
           FadeTransition(opacity: anim, child: child),
     ));

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// LeagueTap visual language: a deep NFL-blue "space navy" canvas, premium and
 /// modern. The blurb is the hero — everything else recedes so "what this means
@@ -32,6 +33,44 @@ class LT {
 
   // Impact
   static const Color hot = Color(0xFFFF5C7A);
+
+  // "Dossier" accent — warm brass/parchment, used only in Front Office to
+  // give your personal team feed a case-file feel distinct from LeagueTap's
+  // editorial navy-and-serif newspaper feel.
+  static const Color dossier = Color(0xFFC9A15A);
+  static const Color dossierDim = Color(0xFF3A3018);
+
+  // Editorial serif — LeagueTap's masthead + headline voice (newspaper feel).
+  static TextStyle serif({
+    required double size,
+    FontWeight weight = FontWeight.w600,
+    double? height,
+    Color color = text,
+    double letterSpacing = 0,
+    FontStyle style = FontStyle.normal,
+  }) =>
+      GoogleFonts.sourceSerif4(
+        fontSize: size,
+        fontWeight: weight,
+        height: height,
+        color: color,
+        letterSpacing: letterSpacing,
+        fontStyle: style,
+      );
+
+  // Typewriter mono — Front Office's dossier/case-file voice for labels.
+  static TextStyle mono({
+    required double size,
+    FontWeight weight = FontWeight.w600,
+    Color color = text,
+    double letterSpacing = 0.4,
+  }) =>
+      GoogleFonts.ibmPlexMono(
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        letterSpacing: letterSpacing,
+      );
 
   // Position chip colors (RB shifted off the accent cyan so chips stay distinct)
   static Color positionColor(String? pos) {

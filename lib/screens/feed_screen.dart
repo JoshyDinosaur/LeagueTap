@@ -803,17 +803,16 @@ class _Hero extends StatelessWidget {
           aspectRatio: aspectRatio,
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(6),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [team.withOpacity(0.92), team.withOpacity(0.30), LT.surface],
               ),
-              border: Border.all(color: LT.border),
-              boxShadow: LT.glow,
+              border: Border.all(color: LT.dossierDim, width: 1.5),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(6),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -863,15 +862,16 @@ class _Hero extends StatelessWidget {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: LT.accent,
-                                      borderRadius: BorderRadius.circular(5),
+                                      borderRadius: BorderRadius.circular(3),
+                                      border: Border.all(
+                                          color: LT.dossier, width: 1.2),
                                     ),
-                                    child: const Text('FEATURED',
-                                        style: TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 0.6,
-                                            color: Colors.black)),
+                                    child: Text('FEATURED',
+                                        style: LT.mono(
+                                            size: 10,
+                                            weight: FontWeight.w700,
+                                            color: LT.dossier,
+                                            letterSpacing: 1.1)),
                                   ),
                                   _TypeChip(type: item.newsType, onDark: true),
                                   if (reporterMeta(item) != null)
@@ -915,10 +915,11 @@ class _Hero extends StatelessWidget {
                           Text(item.reasoning!,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontSize: 13.5,
+                              style: LT.serif(
+                                  size: 13.5,
+                                  weight: FontWeight.w400,
                                   height: 1.35,
-                                  fontStyle: FontStyle.italic,
+                                  style: FontStyle.italic,
                                   color: Colors.white.withOpacity(0.82))),
                         ],
                         const SizedBox(height: 16),
@@ -1002,13 +1003,13 @@ class _TeamNewsPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: LT.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: LT.border),
-        boxShadow: LT.glow,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: LT.dossierDim, width: 1.2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(height: 3, color: LT.dossier),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 12, 10),
             child: Row(children: [
@@ -1016,12 +1017,9 @@ class _TeamNewsPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('FOR YOUR TEAM',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                            color: LT.textFaint)),
+                    Text('CASE FILE — FOR YOUR TEAM',
+                        style: LT.mono(
+                            size: 10, weight: FontWeight.w600, color: LT.dossier)),
                     const SizedBox(height: 2),
                     Text(
                         teamName?.isNotEmpty == true ? teamName! : 'Your Team',

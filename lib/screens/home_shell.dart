@@ -5,9 +5,11 @@ import '../theme.dart';
 import 'feed_screen.dart';
 import 'gameplan_screen.dart';
 import 'league_home_screen.dart';
+import 'league_switch_screen.dart';
 
 /// Top-level shell: shared header + the Front Office home page + bottom nav.
 class HomeShell extends StatelessWidget {
+  final String username;
   final String leagueName;
   final String leagueId;
   final String userId;
@@ -18,6 +20,7 @@ class HomeShell extends StatelessWidget {
 
   const HomeShell({
     super.key,
+    required this.username,
     required this.leagueName,
     required this.leagueId,
     required this.userId,
@@ -31,6 +34,9 @@ class HomeShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
+      // LeagueTap.com is meant to be read like a front page — land there.
+      // The mobile app still opens on your personal Front Office feed.
+      initialIndex: kIsWeb ? 1 : 0,
       child: Scaffold(
         backgroundColor: LT.bg,
         // Mobile app keeps the bottom nav; the web build (LeagueTap.com) drops it.
@@ -41,7 +47,7 @@ class HomeShell extends StatelessWidget {
             bottom: false,
             child: Column(
               children: [
-                _header(),
+                _header(context),
                 const TabBar(
                   labelColor: LT.accent,
                   unselectedLabelColor: LT.textDim,
@@ -80,7 +86,7 @@ class HomeShell extends StatelessWidget {
     );
   }
 
-  Widget _header() {
+  Widget _header(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
       child: SizedBox(
@@ -89,16 +95,36 @@ class HomeShell extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             // Centered league name (inset so it never collides with the icons).
+            // Tappable — opens the league switcher.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 56),
-              child: Text(leagueName,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4)),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => LeagueSwitchScreen(
+                    username: username,
+                    userId: userId,
+                    currentLeagueId: leagueId,
+                  ),
+                )),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(leagueName,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.4)),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.unfold_more, size: 18, color: LT.textFaint),
+                  ],
+                ),
+              ),
             ),
             Align(
               alignment: Alignment.centerLeft,

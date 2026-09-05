@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/sleeper_models.dart';
+import '../services/session_store.dart';
 import '../services/sleeper_service.dart';
 import '../theme.dart';
 import 'home_shell.dart';
@@ -69,18 +70,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       } catch (_) {
         teamName = null;
       }
+      await SessionStore.save(
+        username: _user!.username,
+        userId: _user!.userId,
+        leagueId: league.leagueId,
+        leagueName: league.name,
+      );
       if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => HomeShell(
-          leagueName: league.name,
-          leagueId: league.leagueId,
-          userId: _user!.userId,
-          teamName: teamName,
-          playerIds: myIds,
-          starterIds: myStarters,
-          leaguePlayerIds: leagueIds,
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => HomeShell(
+            username: _user!.username,
+            leagueName: league.name,
+            leagueId: league.leagueId,
+            userId: _user!.userId,
+            teamName: teamName,
+            playerIds: myIds,
+            starterIds: myStarters,
+            leaguePlayerIds: leagueIds,
+          ),
         ),
-      ));
+        (route) => false,
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
