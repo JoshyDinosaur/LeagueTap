@@ -108,9 +108,52 @@ class LT {
   static Color teamColor(String? abbr) =>
       Color(_teamColors[abbr] ?? 0xFF2A3340);
 
-  /// Raw ARGB for a team's primary color, or null when we don't have one — lets
-  /// generative art fall back to a seeded palette instead of the grey default.
-  static int? teamColorValue(String? abbr) => _teamColors[abbr];
+  // Public team color palettes, ordered [primary, secondary, tertiary?]. These
+  // are the teams' actual published colors (colors aren't copyrightable) and
+  // are the ONLY hues the generative thumbnail art uses for a player — no
+  // invented accents. Distinct from _teamColors above, which is a single hue
+  // hand-tuned to read on the dark UI.
+  static const Map<String, List<int>> _teamPalettes = {
+    'ARI': [0xFF97233F, 0xFF000000, 0xFFFFB612],
+    'ATL': [0xFFA71930, 0xFF000000, 0xFFA5ACAF],
+    'BAL': [0xFF241773, 0xFF000000, 0xFF9E7C0C],
+    'BUF': [0xFF00338D, 0xFFC60C30],
+    'CAR': [0xFF0085CA, 0xFF101820, 0xFFBFC0BF],
+    'CHI': [0xFF0B162A, 0xFFC83803],
+    'CIN': [0xFFFB4F14, 0xFF000000],
+    'CLE': [0xFF311D00, 0xFFFF3C00],
+    'DAL': [0xFF003594, 0xFF869397, 0xFF041E42],
+    'DEN': [0xFFFB4F14, 0xFF002244],
+    'DET': [0xFF0076B6, 0xFFB0B7BC, 0xFF000000],
+    'GB': [0xFF203731, 0xFFFFB612],
+    'HOU': [0xFF03202F, 0xFFA71930],
+    'IND': [0xFF002C5F, 0xFFA2AAAD],
+    'JAX': [0xFF006778, 0xFF101820, 0xFFD7A22A],
+    'KC': [0xFFE31837, 0xFFFFB81C],
+    'LAC': [0xFF0080C6, 0xFFFFC20E, 0xFF002A5E],
+    'LAR': [0xFF003594, 0xFFFFA300],
+    'LV': [0xFF000000, 0xFFA5ACAF],
+    'MIA': [0xFF008E97, 0xFFFC4C02, 0xFF005778],
+    'MIN': [0xFF4F2683, 0xFFFFC62F],
+    'NE': [0xFF002244, 0xFFC60C30, 0xFFB0B7BC],
+    'NO': [0xFFD3BC8D, 0xFF101820],
+    'NYG': [0xFF0B2265, 0xFFA71930, 0xFFA5ACAF],
+    'NYJ': [0xFF125740, 0xFF000000],
+    'PHI': [0xFF004C54, 0xFFA5ACAF, 0xFF000000],
+    'PIT': [0xFFFFB612, 0xFF101820],
+    'SEA': [0xFF002244, 0xFF69BE28, 0xFFA5ACAF],
+    'SF': [0xFFAA0000, 0xFFB3995D],
+    'TB': [0xFFD50A0A, 0xFF34302B, 0xFFFF7900],
+    'TEN': [0xFF0C2340, 0xFF4B92DB, 0xFFC8102E],
+    'WAS': [0xFF5A1414, 0xFFFFB612],
+  };
+
+  /// A team's published color palette (primary first), or null when the team
+  /// abbreviation is unknown — the art then falls back to a seeded palette.
+  static List<Color>? teamPalette(String? abbr) {
+    final v = _teamPalettes[abbr];
+    return v == null ? null : [for (final c in v) Color(c)];
+  }
 
   static ThemeData theme() {
     final base = ThemeData.dark(useMaterial3: true);

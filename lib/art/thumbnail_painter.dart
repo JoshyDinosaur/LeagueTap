@@ -9,14 +9,18 @@ import 'seed.dart';
 /// Photo-free generative article art.
 ///
 /// The seed is **player + week**: [seedKey] identifies the player, so a player
-/// keeps one shape family and palette anchor across all their stories, while
-/// [week] re-cuts every parameter so no two of their articles look alike.
-/// [teamAbbr]'s primary color drives the palette (colors aren't copyrightable;
-/// logos and photos are); with no team we fall back to a hue derived from the
-/// player seed.
+/// keeps one shape family and background anchor across all their stories, while
+/// [week] re-cuts the composition (gradient angle, shape counts, rotation) so no
+/// two of their articles look alike.
 ///
-/// This is a direct port of the signed-off HTML sample grid — same hash, same
-/// PRNG, same math — so treat changes here as changes to that reference.
+/// Palette is strictly the player's team's **published colors** — primary,
+/// secondary, and tertiary where the team has one ([LT.teamPalette]) — with the
+/// primary always leading so the team reads at a glance. No invented accent
+/// hues. With no known team we fall back to a palette derived from the player
+/// seed.
+///
+/// The seed layer ([hash32] / [SeededRandom]) matches the HTML sample grid
+/// byte-for-byte; keep it that way if you touch it.
 class ArticleThumbnailPainter extends CustomPainter {
   final String seedKey;
   final int week;
@@ -40,35 +44,47 @@ class ArticleThumbnailPainter extends CustomPainter {
     final rid = SeededRandom(idSeed); // stable per player
     final rwk = SeededRandom(wkSeed); // varies per week
 
-    // ---- palette ----
-    final int? teamValue = LT.teamColorValue(teamAbbr);
-    final HSLColor base = teamValue != null
-        ? HSLColor.fromColor(Color(teamValue))
-        : HSLColor.fromAHSL(1, rid.nextDouble() * 360, 0.52, 0.44);
+    // ---- palette: the player's team colors only ----
+    final List<Color> team = LT.teamPalette(teamAbbr) ?? _seededPalette(rid);
+    final HSLColor lead = HSLColor.fromColor(team.first);
 
-    final idPick = rid.nextInt(3);
-    final accentH = base.hue + 150 + idPick * 40 + (rwk.nextDouble() * 26 - 13);
+    // Primary always leads; the accent + alt rotate among the remaining
+    // published colors, chosen once per player so it's stable week to week.
+    final int accIdx = team.length > 1 ? 1 + rid.nextInt(team.length - 1) : 0;
+    final Color accent = team[accIdx];
+    final Color alt = team.length > 2
+        ? team[3 - accIdx] // the other of index 1 / 2
+        : (team.length > 1 ? team[1] : team.first);
+
     final gradAngle = rwk.nextDouble() * 2 * pi;
     final mode = idSeed % 5;
 
-    Color hsla(double h, double s, double l, [double a = 1]) => HSLColor.fromAHSL(
-          a,
-          h % 360,
-          s.clamp(0.0, 1.0),
-          l.clamp(0.0, 1.0),
-        ).toColor();
+    Color shade(Color c, double l, [double? s]) {
+      final hc = HSLColor.fromColor(c);
+      return HSLColor.fromAHSL(
+        1,
+        hc.hue,
+        (s ?? hc.saturation).clamp(0.0, 1.0),
+        l.clamp(0.0, 1.0),
+      ).toColor();
+    }
 
-    final cDeep = hsla(base.hue, min(base.saturation, 0.60), 0.09);
-    final cBase =
-        hsla(base.hue, min(base.saturation * 0.95, 0.70), min(base.lightness, 0.40));
-    Color cAcc(double a) => hsla(accentH, 0.58, 0.60, a);
+    // Background runs the primary — mid-dark, then near-black-of-primary — so
+    // the team's identity color dominates the frame.
+    final cBase = shade(team.first, min(lead.lightness, 0.40),
+        min(lead.saturation * 0.95, 0.72));
+    final cMid = shade(team.first, 0.13, lead.saturation * 0.78);
+    final cDeep = shade(team.first, 0.07, min(lead.saturation, 0.55));
+
+    Color cAcc(double a) => accent.withOpacity(a);
+    Color cAlt(double a) => alt.withOpacity(a);
     Color cInk(double a) => Colors.white.withOpacity(a);
 
     final w = size.width, h = size.height;
     final r = sqrt(w * w + h * h);
     final cx = w / 2, cy = h / 2;
 
-    // ---- 1. background gradient: team color → deep navy, weekly angle ----
+    // ---- 1. background gradient, weekly angle ----
     final gx = cos(gradAngle) * r * 0.5, gy = sin(gradAngle) * r * 0.5;
     canvas.drawRect(
       Offset.zero & size,
@@ -76,7 +92,7 @@ class ArticleThumbnailPainter extends CustomPainter {
         ..shader = ui.Gradient.linear(
           Offset(cx - gx, cy - gy),
           Offset(cx + gx, cy + gy),
-          [cBase, hsla(base.hue, base.saturation * 0.7, 0.13), cDeep],
+          [cBase, cMid, cDeep],
           [0.0, 0.55, 1.0],
         ),
     );
@@ -101,19 +117,19 @@ class ArticleThumbnailPainter extends CustomPainter {
     canvas.rotate(rwk.nextDouble() * 2 * pi);
     switch (mode) {
       case 0:
-        _arcs(canvas, r, rwk, cAcc, cInk);
+        _arcs(canvas, r, rwk, cAcc, cAlt, cInk);
         break;
       case 1:
-        _chevrons(canvas, r, rwk, cAcc, cInk);
+        _chevrons(canvas, r, rwk, cAcc, cAlt, cInk);
         break;
       case 2:
-        _bands(canvas, r, rwk, cAcc, cInk);
+        _bands(canvas, r, rwk, cAcc, cAlt, cInk);
         break;
       case 3:
-        _dots(canvas, r, rwk, cAcc, cInk);
+        _dots(canvas, r, rwk, cAcc, cAlt, cInk);
         break;
       default:
-        _packed(canvas, r, rwk, cAcc, cInk);
+        _packed(canvas, r, rwk, cAcc, cAlt, cInk);
     }
     canvas.restore();
 
@@ -147,14 +163,16 @@ class ArticleThumbnailPainter extends CustomPainter {
 
   // --- shape families -------------------------------------------------------
   // Each takes the diagonal `r` and the weekly PRNG; the canvas is already
-  // translated to the player anchor and rotated by a weekly angle.
+  // translated to the player anchor and rotated by a weekly angle. `acc` / `alt`
+  // are two of the team's published colors, `ink` is white.
 
   void _arcs(Canvas c, double r, SeededRandom rwk, Color Function(double) acc,
-      Color Function(double) ink) {
+      Color Function(double) alt, Color Function(double) ink) {
     final rings = 4 + rwk.nextInt(5);
     for (var i = 0; i < rings; i++) {
       final rr = r * 0.5 * ((i + 1) / rings);
       final a0 = rwk.nextDouble() * 2 * pi;
+      final tone = i % 3;
       c.drawArc(
         Rect.fromCircle(center: Offset.zero, radius: rr),
         a0,
@@ -163,13 +181,13 @@ class ArticleThumbnailPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1 + i * 0.9
-          ..color = i.isOdd ? acc(0.5) : ink(0.16),
+          ..color = tone == 0 ? acc(0.5) : (tone == 1 ? alt(0.5) : ink(0.16)),
       );
     }
   }
 
   void _chevrons(Canvas c, double r, SeededRandom rwk, Color Function(double) acc,
-      Color Function(double) ink) {
+      Color Function(double) alt, Color Function(double) ink) {
     final n = 3 + rwk.nextInt(4);
     final step = (r * 0.34) / n;
     final p = Paint()
@@ -178,7 +196,8 @@ class ArticleThumbnailPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = 3 + rwk.nextDouble() * 6;
     for (var i = 0; i < n; i++) {
-      p.color = i.isOdd ? acc(0.55) : ink(0.2);
+      final tone = i % 3;
+      p.color = tone == 0 ? acc(0.55) : (tone == 1 ? alt(0.5) : ink(0.2));
       final off = i * step - (n * step) / 2;
       final s = r * 0.22;
       c.drawPath(
@@ -192,25 +211,28 @@ class ArticleThumbnailPainter extends CustomPainter {
   }
 
   void _bands(Canvas c, double r, SeededRandom rwk, Color Function(double) acc,
-      Color Function(double) ink) {
+      Color Function(double) alt, Color Function(double) ink) {
     final n = 4 + rwk.nextInt(4);
     final gap = (r * 0.5) / n;
     for (var i = 0; i < n; i++) {
       final y = i * gap - (n * gap) / 2 + rwk.nextDouble() * 6;
       final bh = gap * (0.35 + rwk.nextDouble() * 0.4);
+      final tone = i % 3;
       c.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(-r * 0.55, y, r * 1.1, bh),
           Radius.circular(bh / 2),
         ),
         Paint()
-          ..color = i % 3 == 0 ? acc(0.4) : ink(0.07 + (i.isOdd ? 0.05 : 0.0)),
+          ..color = tone == 0
+              ? acc(0.42)
+              : (tone == 1 ? alt(0.34) : ink(0.09)),
       );
     }
   }
 
   void _dots(Canvas c, double r, SeededRandom rwk, Color Function(double) acc,
-      Color Function(double) ink) {
+      Color Function(double) alt, Color Function(double) ink) {
     final cols = 5 + rwk.nextInt(4);
     final rows = 4 + rwk.nextInt(3);
     final sx = (r * 0.7) / cols, sy = (r * 0.5) / rows;
@@ -219,23 +241,26 @@ class ArticleThumbnailPainter extends CustomPainter {
       for (var b = 0; b < rows; b++) {
         final t = (a / cols) * dir + (b / rows) * (1 - dir * 0.5);
         final rad = max(0.6, sx * 0.42 * (0.3 + t.abs()));
+        final tone = (a + b) % 3;
         c.drawCircle(
           Offset(a * sx - (cols * sx) / 2, b * sy - (rows * sy) / 2),
           rad,
-          Paint()..color = (a + b) % 4 == 0 ? acc(0.7) : ink(0.14),
+          Paint()
+            ..color = tone == 0 ? acc(0.7) : (tone == 1 ? alt(0.55) : ink(0.14)),
         );
       }
     }
   }
 
   void _packed(Canvas c, double r, SeededRandom rwk, Color Function(double) acc,
-      Color Function(double) ink) {
+      Color Function(double) alt, Color Function(double) ink) {
     final n = 6 + rwk.nextInt(7);
     for (var i = 0; i < n; i++) {
       final rr = r * (0.05 + rwk.nextDouble() * 0.2);
       final px = (rwk.nextDouble() - 0.5) * r * 0.8;
       final py = (rwk.nextDouble() - 0.5) * r * 0.6;
-      if (i % 3 == 0) {
+      final tone = i % 3;
+      if (tone == 2) {
         c.drawCircle(
           Offset(px, py),
           rr,
@@ -248,7 +273,7 @@ class ArticleThumbnailPainter extends CustomPainter {
         c.drawCircle(
           Offset(px, py),
           rr,
-          Paint()..color = i.isOdd ? acc(0.32) : ink(0.07),
+          Paint()..color = tone == 0 ? acc(0.34) : alt(0.28),
         );
       }
     }
@@ -260,4 +285,16 @@ class ArticleThumbnailPainter extends CustomPainter {
       old.week != week ||
       old.teamAbbr != teamAbbr ||
       old.scrim != scrim;
+}
+
+/// Fallback palette for an unknown team: a base hue off the player seed plus an
+/// analogous partner and a light neutral. Same shape as [LT.teamPalette].
+List<Color> _seededPalette(SeededRandom rid) {
+  final hue = rid.nextDouble() * 360;
+  return [
+    HSLColor.fromAHSL(1, hue, 0.55, 0.42).toColor(),
+    HSLColor.fromAHSL(1, (hue + 38 + rid.nextDouble() * 54) % 360, 0.50, 0.56)
+        .toColor(),
+    HSLColor.fromAHSL(1, (hue + 205) % 360, 0.32, 0.72).toColor(),
+  ];
 }

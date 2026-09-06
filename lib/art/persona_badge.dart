@@ -1,11 +1,14 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 /// Placeholder reporter-persona badge.
 ///
-/// Each persona is one [PersonaBadgeSpec] — a color plus a short initial. Real
+/// Each persona is one [PersonaBadgeSpec] — a color plus a simple drawn glyph
+/// (mic = The Beat, phone = The Voice, necktie = the Breaking news desk). Real
 /// Aseprite badge art is a later step; when it lands, add an `asset` to the
-/// spec and branch on it in [PersonaBadge.build]. Nothing else in the app
-/// needs to change — every article thumbnail reads its badge from here.
+/// spec and branch on it in [PersonaBadge.build]. Nothing else in the app needs
+/// to change — every article thumbnail reads its badge from here.
 @immutable
 class PersonaBadgeSpec {
   /// Matches `news_items.reporter_type` / the get-feed `reporter` field.
@@ -14,15 +17,16 @@ class PersonaBadgeSpec {
   /// Full display name (e.g. "Breaking Desk").
   final String label;
 
-  /// 1–2 characters shown on the placeholder tile.
-  final String initial;
+  /// Which placeholder glyph to draw: `tie` | `mic` | `phone` | `trend` |
+  /// `wordmark`.
+  final String glyph;
 
   final Color color;
 
   const PersonaBadgeSpec({
     required this.key,
     required this.label,
-    required this.initial,
+    required this.glyph,
     required this.color,
   });
 }
@@ -34,25 +38,25 @@ const Map<String, PersonaBadgeSpec> kPersonaBadges = {
   'breaking': PersonaBadgeSpec(
     key: 'breaking',
     label: 'Breaking Desk',
-    initial: 'B',
+    glyph: 'tie',
     color: Color(0xFFFF5C7A),
   ),
   'beat': PersonaBadgeSpec(
     key: 'beat',
     label: 'The Beat',
-    initial: 'T',
+    glyph: 'mic',
     color: Color(0xFF6CA8FF),
   ),
   'social': PersonaBadgeSpec(
     key: 'social',
     label: 'The Voice',
-    initial: 'V',
+    glyph: 'phone',
     color: Color(0xFFB98AFF),
   ),
   'trends': PersonaBadgeSpec(
     key: 'trends',
     label: 'Start/Sit Trends',
-    initial: 'S',
+    glyph: 'trend',
     color: Color(0xFF7DD3A8),
   ),
 };
@@ -62,16 +66,15 @@ const Map<String, PersonaBadgeSpec> kPersonaBadges = {
 const PersonaBadgeSpec kNeutralBadge = PersonaBadgeSpec(
   key: '_none',
   label: 'LeagueTap',
-  initial: 'LT',
+  glyph: 'wordmark',
   color: Color(0xFF95A2C4),
 );
 
 PersonaBadgeSpec personaBadgeSpec(String? reporter) =>
     kPersonaBadges[reporter] ?? kNeutralBadge;
 
-/// A small rounded tile in the persona's color with its initial. The caller
-/// sets [size]; keep it on the smaller side — it's a byline mark, not a focal
-/// point.
+/// A small rounded tile in the persona's color with its glyph. The caller sets
+/// [size]; keep it on the smaller side — it's a byline mark, not a focal point.
 class PersonaBadge extends StatelessWidget {
   final String? reporter;
   final double size;
@@ -81,7 +84,7 @@ class PersonaBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spec = personaBadgeSpec(reporter);
-    final twoChar = spec.initial.length > 1;
+    const ink = Color(0xFF0B0E1A);
     return Container(
       width: size,
       height: size,
@@ -105,16 +108,140 @@ class PersonaBadge extends StatelessWidget {
         ],
       ),
       alignment: Alignment.center,
-      child: Text(
-        spec.initial,
-        style: TextStyle(
-          fontSize: size * (twoChar ? 0.38 : 0.5),
-          fontWeight: FontWeight.w800,
-          height: 1,
-          letterSpacing: twoChar ? -0.5 : 0,
-          color: const Color(0xFF0B0E1A),
-        ),
-      ),
+      child: spec.glyph == 'wordmark'
+          ? Text(
+              'LT',
+              style: TextStyle(
+                fontSize: size * 0.36,
+                fontWeight: FontWeight.w800,
+                height: 1,
+                letterSpacing: -0.5,
+                color: ink,
+              ),
+            )
+          : SizedBox.square(
+              dimension: size * 0.62,
+              child: CustomPaint(
+                painter: _PersonaGlyphPainter(spec.glyph, ink, spec.color),
+              ),
+            ),
     );
   }
+}
+
+/// Draws the placeholder persona glyphs. Deliberately simple silhouettes —
+/// they're stand-ins for real art.
+class _PersonaGlyphPainter extends CustomPainter {
+  final String glyph;
+  final Color ink; // dark foreground
+  final Color tile; // badge base color, for "cut-out" details
+
+  const _PersonaGlyphPainter(this.glyph, this.ink, this.tile);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final cx = size.width / 2;
+    final fill = Paint()
+      ..color = ink
+      ..isAntiAlias = true;
+
+    switch (glyph) {
+      case 'mic': // The Beat
+        final headW = s * 0.36, headTop = s * 0.04, headH = s * 0.5;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(cx - headW / 2, headTop, headW, headH),
+            Radius.circular(headW / 2),
+          ),
+          fill,
+        );
+        canvas.drawArc(
+          Rect.fromCircle(
+              center: Offset(cx, headTop + headH * 0.58), radius: s * 0.32),
+          pi * 0.12,
+          pi * 0.76,
+          false,
+          Paint()
+            ..color = ink
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = s * 0.09
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(cx - s * 0.045, headTop + headH * 0.7, s * 0.09, s * 0.22),
+          fill,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(cx - s * 0.2, s * 0.9, s * 0.4, s * 0.09),
+            Radius.circular(s * 0.045),
+          ),
+          fill,
+        );
+        break;
+
+      case 'phone': // The Voice
+        final pw = s * 0.5, ph = s * 0.86;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(cx - pw / 2, (s - ph) / 2, pw, ph),
+            Radius.circular(s * 0.12),
+          ),
+          fill,
+        );
+        final cut = Paint()..color = tile;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(
+                cx - s * 0.1, (s - ph) / 2 + s * 0.08, s * 0.2, s * 0.045),
+            Radius.circular(s * 0.03),
+          ),
+          cut,
+        );
+        canvas.drawCircle(Offset(cx, (s + ph) / 2 - s * 0.09), s * 0.05, cut);
+        break;
+
+      case 'tie': // Breaking Desk
+        canvas.drawPath(
+          Path()
+            ..moveTo(cx - s * 0.14, s * 0.06)
+            ..lineTo(cx + s * 0.14, s * 0.06)
+            ..lineTo(cx + s * 0.1, s * 0.28)
+            ..lineTo(cx - s * 0.1, s * 0.28)
+            ..close(),
+          fill,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(cx - s * 0.1, s * 0.3)
+            ..lineTo(cx + s * 0.1, s * 0.3)
+            ..lineTo(cx + s * 0.19, s * 0.7)
+            ..lineTo(cx, s * 0.95)
+            ..lineTo(cx - s * 0.19, s * 0.7)
+            ..close(),
+          fill,
+        );
+        break;
+
+      case 'trend': // Start/Sit Trends
+        final bw = s * 0.16;
+        for (var i = 0; i < 3; i++) {
+          final bh = s * (0.3 + i * 0.22);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(
+                  cx - s * 0.28 + i * (bw + s * 0.06), s * 0.9 - bh, bw, bh),
+              Radius.circular(s * 0.03),
+            ),
+            fill,
+          );
+        }
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PersonaGlyphPainter old) =>
+      old.glyph != glyph || old.ink != ink || old.tile != tile;
 }
