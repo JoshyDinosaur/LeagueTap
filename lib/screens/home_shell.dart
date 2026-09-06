@@ -141,14 +141,6 @@ class HomeShell extends StatelessWidget {
                 child: const Icon(Icons.person, size: 18, color: LT.textDim),
               ),
             ),
-            const Align(
-              alignment: Alignment.centerRight,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.search, color: LT.textDim, size: 22),
-                SizedBox(width: 16),
-                Icon(Icons.notifications_none, color: LT.textDim, size: 22),
-              ]),
-            ),
           ],
         ),
       ),
