@@ -3,27 +3,46 @@
 class FeedResult {
   final List<FeedItem> team;
   final List<FeedItem> league;
-  FeedResult({required this.team, required this.league});
 
-  factory FeedResult.fromJson(Map<String, dynamic> j) => FeedResult(
-        team: ((j['team'] as List?) ?? [])
-            .map((e) => FeedItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        league: ((j['league'] as List?) ?? [])
-            .map((e) => FeedItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+  /// NFL week the feed was built for (from Sleeper's state, or an override).
+  /// get-feed returns this at the top level; each [FeedItem] is stamped with it
+  /// so thumbnails can seed on player + week.
+  final int week;
+  final String? season;
+
+  FeedResult({
+    required this.team,
+    required this.league,
+    this.week = 0,
+    this.season,
+  });
+
+  factory FeedResult.fromJson(Map<String, dynamic> j) {
+    final week = (j['week'] as num?)?.toInt() ?? 0;
+    return FeedResult(
+      week: week,
+      season: j['season']?.toString(),
+      team: ((j['team'] as List?) ?? [])
+          .map((e) => FeedItem.fromJson(e as Map<String, dynamic>, week: week))
+          .toList(),
+      league: ((j['league'] as List?) ?? [])
+          .map((e) => FeedItem.fromJson(e as Map<String, dynamic>, week: week))
+          .toList(),
+    );
+  }
 }
 
 class MyPlayer {
+  final String? id; // Sleeper player id — stable seed key for thumbnail art
   final String name;
   final String? position;
   final String? team;
   final String? injury; // injury_status (Questionable/Out/IR/…) or null
 
-  MyPlayer({required this.name, this.position, this.team, this.injury});
+  MyPlayer({this.id, required this.name, this.position, this.team, this.injury});
 
   factory MyPlayer.fromJson(Map<String, dynamic> j) => MyPlayer(
+        id: j['id']?.toString(),
         name: j['name']?.toString() ?? '',
         position: j['position']?.toString(),
         team: j['team']?.toString(),
@@ -50,6 +69,7 @@ class FeedItem {
   final List<String> tags;
   final String? reporter; // breaking | beat | social
   final String? reporterName; // display name e.g. "Breaking Desk"
+  final int week; // stamped from the feed response; seeds thumbnail art
 
   FeedItem({
     required this.id,
@@ -70,9 +90,26 @@ class FeedItem {
     this.tags = const [],
     this.reporter,
     this.reporterName,
+    this.week = 0,
   });
 
-  factory FeedItem.fromJson(Map<String, dynamic> j) => FeedItem(
+  /// Deterministic seed for this article's generative thumbnail. Keys on the
+  /// primary rostered player (Sleeper id where available, else a normalized
+  /// name), so a player's art stays recognizable week to week; falls back to
+  /// the news id when no roster player is attached.
+  String get thumbSeedKey {
+    final p = myPlayers.isNotEmpty ? myPlayers.first : null;
+    final pid = p?.id;
+    if (pid != null && pid.isNotEmpty) return 'p:$pid';
+    final name = p?.name ?? '';
+    if (name.isNotEmpty) {
+      return 'n:${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '')}';
+    }
+    return 'a:$id';
+  }
+
+  factory FeedItem.fromJson(Map<String, dynamic> j, {int week = 0}) => FeedItem(
+        week: week,
         id: j['id']?.toString() ?? '',
         source: j['source']?.toString() ?? '',
         url: j['url']?.toString() ?? '',

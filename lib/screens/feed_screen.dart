@@ -7,6 +7,7 @@ import '../models/opponent_news_models.dart';
 import '../services/feed_service.dart';
 import '../services/opponent_news_service.dart';
 import '../theme.dart';
+import '../widgets/article_thumbnail.dart';
 
 String relativeTime(DateTime? t) {
   if (t == null) return '';
@@ -80,12 +81,6 @@ const Map<String, List<IconData>> _glyphVariants = {
   'general': [Icons.sports_football, Icons.article, Icons.newspaper, Icons.flag],
 };
 
-IconData backdropGlyph(FeedItem item) {
-  final list = _glyphVariants[item.newsType] ?? _glyphVariants['general']!;
-  final idx = item.id.hashCode.abs() % list.length;
-  return list[idx];
-}
-
 String? _teamOf(FeedItem i) =>
     i.myPlayers.isNotEmpty ? i.myPlayers.first.team : null;
 
@@ -116,8 +111,7 @@ ReporterMeta? reporterMeta(FeedItem i) {
 // A small reporter-persona byline chip.
 class _ReporterBadge extends StatelessWidget {
   final FeedItem item;
-  final bool onDark;
-  const _ReporterBadge({required this.item, this.onDark = false});
+  const _ReporterBadge({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +125,7 @@ class _ReporterBadge extends StatelessWidget {
               fontSize: 10,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
-              color: onDark ? Colors.white.withOpacity(0.92) : m.hue)),
+              color: m.hue)),
     ]);
   }
 }
@@ -816,14 +810,19 @@ class _Hero extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Branded "tap ripple" backdrop — our stand-in for a hero photo.
-                  Positioned.fill(child: CustomPaint(painter: _RipplePainter())),
-                  // Oversized category glyph, faint, for context.
-                  Positioned(
-                    right: -40,
-                    top: -30,
-                    child: Icon(backdropGlyph(item),
-                        size: 230, color: Colors.white.withOpacity(0.07)),
+                  // Seeded generative backdrop — photo-free, deterministic from
+                  // player + week, tinted to the team's color. Carries the
+                  // reporter-persona badge in its corner; scrim off here since
+                  // the hero paints its own below.
+                  Positioned.fill(
+                    child: ArticleThumbnail(
+                      seedKey: item.thumbSeedKey,
+                      week: item.week,
+                      teamAbbr: _teamOf(item),
+                      reporter: item.reporter,
+                      scrim: false,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                   // Bottom scrim so the headline stays legible.
                   Positioned.fill(
@@ -874,8 +873,8 @@ class _Hero extends StatelessWidget {
                                             letterSpacing: 1.1)),
                                   ),
                                   _TypeChip(type: item.newsType, onDark: true),
-                                  if (reporterMeta(item) != null)
-                                    _ReporterBadge(item: item, onDark: true),
+                                  // Persona is shown by the thumbnail's corner
+                                  // badge, so no byline chip here.
                                 ],
                               ),
                             ),
@@ -923,16 +922,22 @@ class _Hero extends StatelessWidget {
                                   color: Colors.white.withOpacity(0.82))),
                         ],
                         const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            if (item.action != null)
-                              _ActionChip(
-                                  action: item.action!,
-                                  severity: item.severity),
-                            ...item.myPlayers.map((p) => _PlayerChip(player: p)),
-                          ],
+                        // Trailing gap keeps the last chip clear of the
+                        // thumbnail's corner persona badge.
+                        Padding(
+                          padding: const EdgeInsets.only(right: 44),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              if (item.action != null)
+                                _ActionChip(
+                                    action: item.action!,
+                                    severity: item.severity),
+                              ...item.myPlayers
+                                  .map((p) => _PlayerChip(player: p)),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -945,42 +950,6 @@ class _Hero extends StatelessWidget {
       ),
     );
   }
-}
-
-// Concentric "tap ripple" rings — the LeagueTap mark, rendered as hero backdrop
-// art so we don't need a photo. Rings emanate from a point like a tap on water.
-class _RipplePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final origin = Offset(size.width * 0.74, size.height * 0.40);
-    final maxR = size.longestSide * 1.05;
-    const rings = 9;
-    for (int i = rings; i >= 1; i--) {
-      final r = maxR * (i / rings);
-      final fade = 1 - (i / rings); // inner rings brighter
-      canvas.drawCircle(
-        origin,
-        r,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = Colors.white.withOpacity(0.05 + fade * 0.10),
-      );
-    }
-    // The "tap" point.
-    canvas.drawCircle(
-        origin, 7, Paint()..color = Colors.white.withOpacity(0.22));
-    canvas.drawCircle(
-        origin,
-        16,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = Colors.white.withOpacity(0.20));
-  }
-
-  @override
-  bool shouldRepaint(covariant _RipplePainter oldDelegate) => false;
 }
 
 // The "NEWS" side rail (NFL.com style): a panel of compact headline rows for

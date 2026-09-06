@@ -108,6 +108,10 @@ class LT {
   static Color teamColor(String? abbr) =>
       Color(_teamColors[abbr] ?? 0xFF2A3340);
 
+  /// Raw ARGB for a team's primary color, or null when we don't have one — lets
+  /// generative art fall back to a seeded palette instead of the grey default.
+  static int? teamColorValue(String? abbr) => _teamColors[abbr];
+
   static ThemeData theme() {
     final base = ThemeData.dark(useMaterial3: true);
     return base.copyWith(

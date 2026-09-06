@@ -17,6 +17,8 @@
 //     action, severity, confidence, timeframe, relevance (0–100), reasoning, tags[].
 //   Each item is written in the voice of its reporter persona (reporter /
 //   reporter_name), routed from news_items.reporter_type set at ingest.
+//   FeedItem.my_players[] carries { id (Sleeper player id), name, position,
+//   team, injury } — id + the top-level week seed the app's thumbnail art.
 //
 // Secrets: ANTHROPIC_API_KEY. SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY auto-injected.
 
@@ -513,6 +515,9 @@ async function buildFeed(
       reporter: persona.type,
       reporter_name: persona.name,
       my_players: myPlayers.map((p: any) => ({
+        // id = Sleeper player id — the app seeds each article's generative
+        // thumbnail on it (player + week), so keep it stable and present.
+        id: p.sleeper_player_id,
         name: p.full_name, position: p.position, team: p.team, injury: p.injury_status ?? null,
       })),
       blurb: blurb?.text ?? null,
