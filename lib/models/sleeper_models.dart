@@ -98,12 +98,14 @@ class SleeperRoster {
 /// A league member (manager). team_name lives under metadata.
 class SleeperLeagueUser {
   final String userId;
+  final String username;
   final String displayName;
   final String? teamName;
   final String? avatar;
 
   SleeperLeagueUser({
     required this.userId,
+    required this.username,
     required this.displayName,
     this.teamName,
     this.avatar,
@@ -113,13 +115,18 @@ class SleeperLeagueUser {
     final meta = (json['metadata'] as Map?)?.cast<String, dynamic>() ?? {};
     return SleeperLeagueUser(
       userId: json['user_id']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
       displayName: json['display_name']?.toString() ?? 'Manager',
       teamName: meta['team_name']?.toString(),
       avatar: json['avatar']?.toString(),
     );
   }
 
-  String get name => teamName?.isNotEmpty == true ? teamName! : displayName;
+  // Managers are identified by their actual Sleeper username throughout the
+  // app -- it's stable, unlike the team name (a pun that can change weekly)
+  // or the display name. Falls back to display name only in the unlikely
+  // case Sleeper returns an empty username.
+  String get name => username.isNotEmpty ? username : displayName;
 }
 
 /// A single team's entry in a weekly matchup.
