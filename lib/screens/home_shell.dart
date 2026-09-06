@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
@@ -34,9 +33,11 @@ class HomeShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
-      // LeagueTap.com is meant to be read like a front page — land there.
-      // The mobile app still opens on your personal Front Office feed.
-      initialIndex: kIsWeb ? 1 : 0,
+      // Always land on the LeagueTap tab on a fresh app launch (cold start).
+      // This only sets the tab once, at initial build -- backgrounding and
+      // returning to an already-running app keeps whatever tab the user was
+      // last on (e.g. Front Office), since that doesn't rebuild this widget.
+      initialIndex: 1,
       child: Scaffold(
         backgroundColor: LT.bg,
         body: Container(
