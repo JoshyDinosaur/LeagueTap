@@ -6,8 +6,19 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Positions we care about for fantasy news matching.
-const RELEVANT_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+// Positions we care about for fantasy news matching. This isn't just
+// "who can be rostered" -- it's also the authoritative-team lookup that
+// get-league-feed/ingest-news use to stop the AI writer from guessing a
+// player's team from stale training data. So it needs to cover individual
+// defensive players too (DE, DT, LB, CB, S, ...): they show up by name in
+// fantasy news constantly (trades, injuries, pass-rush matchups) even in
+// leagues that don't roster IDPs, and without an authoritative row here
+// the model falls back on whatever team it last "remembers" them on.
+const RELEVANT_POSITIONS = new Set([
+  "QB", "RB", "WR", "TE", "K", "DEF",
+  "DL", "DE", "DT", "LB", "OLB", "ILB", "EDGE",
+  "DB", "CB", "S", "FS", "SS",
+]);
 
 // Normalize a name for substring matching against news text:
 // lowercase, collapse whitespace, strip punctuation (keep letters/spaces).
