@@ -99,7 +99,9 @@ class _GameplanTabState extends State<GameplanTab>
               _section('Your opponent', 'Who you’re up against'),
               _OpponentBlock(ctx: ctx),
               const SizedBox(height: 8),
-              _section('Opponent News', 'Scout their roster before you set your lineup'),
+              // OpponentNewsRow renders its own title/subtitle header (via
+              // _Carousel / _EmptySection), so no separate _section() call
+              // here -- that was producing a duplicate 'Opponent News' header.
               OpponentNewsRow(leagueId: widget.leagueId, userId: widget.userId, sidePad: 20),
             ],
           );

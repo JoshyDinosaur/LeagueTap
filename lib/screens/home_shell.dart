@@ -114,9 +114,12 @@ class HomeShell extends StatelessWidget {
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
+                          // Same editorial serif as the LeagueTap masthead,
+                          // so the league picker reads like part of the same
+                          // newspaper-style brand voice.
+                          style: LT.serif(
+                              size: 19,
+                              weight: FontWeight.w800,
                               letterSpacing: -0.4)),
                     ),
                     const SizedBox(width: 4),
