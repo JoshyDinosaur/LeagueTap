@@ -44,7 +44,7 @@ async function snapshotLeague(supabase: Supabase, leagueId: string, isFinal: boo
 
   const nameByUser: Record<string, string> = {};
   for (const u of users) {
-    nameByUser[u.user_id] = u.metadata?.team_name || u.display_name || "A team";
+    nameByUser[u.user_id] = u.username || u.display_name || "A team";
   }
 
   const matchupsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${week}`);

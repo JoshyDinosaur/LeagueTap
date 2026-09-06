@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   const matchups = matchupsRes.ok ? await matchupsRes.json() : [];
 
   const nameByUser: Record<string, string> = {};
-  for (const u of users) nameByUser[u.user_id] = u.metadata?.team_name || u.display_name || "Opponent";
+  for (const u of users) nameByUser[u.user_id] = u.username || u.display_name || "Opponent";
 
   const mine = rosters.find((r: any) => r.owner_id === userId);
   const myEntry = mine && matchups.find((m: any) => m.roster_id === mine.roster_id);

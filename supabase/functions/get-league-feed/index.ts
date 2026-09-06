@@ -277,7 +277,7 @@ Deno.serve(async (req) => {
   const users = usersRes.ok ? await usersRes.json() : [];
   const nameByUser: Record<string, string> = {};
   for (const u of users) {
-    nameByUser[u.user_id] = u.metadata?.team_name || u.display_name || "A team";
+    nameByUser[u.user_id] = u.username || u.display_name || "A team";
   }
   const ownerByPlayer: Record<string, string> = {}; // player_id -> manager/team name
   for (const r of rosters) {
