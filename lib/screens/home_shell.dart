@@ -39,8 +39,6 @@ class HomeShell extends StatelessWidget {
       initialIndex: kIsWeb ? 1 : 0,
       child: Scaffold(
         backgroundColor: LT.bg,
-        // Mobile app keeps the bottom nav; the web build (LeagueTap.com) drops it.
-        bottomNavigationBar: kIsWeb ? null : const _BottomNav(),
         body: Container(
           decoration: const BoxDecoration(gradient: LT.bgGradient),
           child: SafeArea(
@@ -149,57 +147,6 @@ class HomeShell extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _BottomNav extends StatelessWidget {
-  const _BottomNav();
-
-  @override
-  Widget build(BuildContext context) {
-    Widget item(IconData icon, String label, {bool active = false}) {
-      final color = active ? LT.accent : LT.textFaint;
-      return Expanded(
-        child: GestureDetector(
-          onTap: active
-              ? null
-              : () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Coming soon')),
-                  ),
-          behavior: HitTestBehavior.opaque,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(height: 4),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: color,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      height: 78,
-      decoration: const BoxDecoration(
-        color: LT.bg,
-        border: Border(top: BorderSide(color: LT.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(children: [
-          item(Icons.article_outlined, 'News', active: true),
-          item(Icons.scoreboard_outlined, 'Scores'),
-          item(Icons.star_border, 'Favorites'),
-          item(Icons.explore_outlined, 'Discover'),
-          item(Icons.emoji_events_outlined, 'Leagues'),
-        ]),
       ),
     );
   }
