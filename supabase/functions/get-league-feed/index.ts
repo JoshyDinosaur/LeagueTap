@@ -33,7 +33,7 @@ import { extractPassages, capBody, FEED_MAX } from "../_shared/article.ts";
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 // Bump when the blurb prompt/schema changes -- folds into the cache key so
 // existing cached blurbs regenerate with the new shape.
-const BLURB_VERSION = "v3";
+const BLURB_VERSION = "v4";
 const BLURB_COUNT = 15;
 const MAX_CONCURRENCY = 8;
 
@@ -72,7 +72,7 @@ const PERSONAS: Record<string, Persona> = {
     voice:
       "You are the Breaking Desk — fast and sharp. One declarative line on what this means for the " +
       "affected fantasy team, with a wry edge. Facts only; the bite is in the framing. " +
-      "(e.g. 'Marcus just watched his RB1's only competition get cut — crisis averted.')",
+      "(e.g. 'Marcus just watched his starting back's only competition get cut — crisis averted.')",
   },
   beat: {
     type: "beat", name: "The Beat", temperature: 0.55,
@@ -205,8 +205,14 @@ async function leagueBlurb(
     `Readers ALREADY see the headline — do NOT restate it. First set "subject" to lock onto the right ` +
     `manager + player + team, then write ONE line in your voice that adds an angle the headline can't, ` +
     `recontextualized around the affected fantasy team (name it naturally). If your line could be ` +
-    `swapped for the headline, it failed — rewrite it. Score relevance honestly (most news is low). ` +
-    `Call the league_take tool.`;
+    `swapped for the headline, it failed — rewrite it. ` +
+    `Never write a position letter directly followed by a number to express a ranking or tier ` +
+    `(e.g. "QB6", "RB12", "a WR2") — that shorthand is genuinely ambiguous in fantasy football ` +
+    `(weekly starter tier, overall scoring rank, and depth-chart slot all look identical) and the ` +
+    `reader can't tell which you mean. Say standing in plain language instead: "the No. 6 ` +
+    `quarterback in fantasy scoring" or "a low-end starting QB most weeks" — never bare ` +
+    `position+number shorthand. ` +
+    `Score relevance honestly (most news is low). Call the league_take tool.`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",

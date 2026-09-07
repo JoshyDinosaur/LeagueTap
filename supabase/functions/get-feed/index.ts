@@ -28,7 +28,7 @@ import { extractPassages, capBody, FEED_MAX } from "../_shared/article.ts";
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 // Bump when the blurb prompt/persona voices change — folds into the cache key
 // so existing cached blurbs regenerate with the new voice.
-const BLURB_VERSION = "v3";
+const BLURB_VERSION = "v4";
 const TEAM_BLURBS = 10;     // team items that get an AI blurb
 const LEAGUE_BLURBS = 6;    // league items that get an AI blurb
 const MAX_CONCURRENCY = 8;  // parallel Anthropic calls
@@ -62,7 +62,7 @@ const PERSONAS: Record<string, Persona> = {
       "You are the Breaking Desk — fast, sharp, a little wry. One declarative line on the fantasy " +
       "fallout, the kind that makes a manager exhale or curse out loud. Facts only; the edge is in " +
       "the framing, never invented details. " +
-      "(e.g. 'Your RB1 just inherited the whole backfield — set it and forget it.')",
+      "(e.g. 'Your starting back just inherited the whole backfield — set it and forget it.')",
   },
   beat: {
     type: "beat", name: "The Beat", temperature: 0.55,
@@ -278,6 +278,12 @@ async function generateBlurb(
     `to lock onto the right player + team, then write ONE line in your voice that adds what the ` +
     `headline can't: the fantasy implication for THEIR team, a sharp read, or a genuinely funny ` +
     `angle. Weigh ${weigh}. If your line could be swapped for the headline, it failed — rewrite it. ` +
+    `Never write a position letter directly followed by a number to express a ranking or tier ` +
+    `(e.g. "QB6", "RB12", "a WR2") — that shorthand is genuinely ambiguous in fantasy football ` +
+    `(weekly starter tier, overall scoring rank, and depth-chart slot all look identical) and the ` +
+    `reader can't tell which you mean. Say standing in plain language instead: "the No. 6 ` +
+    `quarterback in fantasy scoring" or "a low-end starting QB most weeks" — never bare ` +
+    `position+number shorthand. ` +
     `Score relevance honestly (most news is low). Call the fantasy_take tool.`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {

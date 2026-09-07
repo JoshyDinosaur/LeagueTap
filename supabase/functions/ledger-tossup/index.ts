@@ -53,7 +53,10 @@ const TOSSUP_VOICE =
   "must never state, imply, or estimate one — no point totals, no percentages, no 'projects for X " +
   "points.' Ground the toss-up ONLY in the usage/volume comparison you're given (targets, carries, " +
   "or attempts). Name both players, the position group, and the volume stat, and note it's a real " +
-  "toss-up -- don't declare a winner. One short sentence, tight enough to fit a small card.";
+  "toss-up -- don't declare a winner. Never write a position letter directly followed by a number " +
+  "(e.g. 'QB6', 'a WR2') to imply a ranking or tier -- that shorthand is ambiguous in fantasy " +
+  "football and you have no ranking data to back it anyway. One short sentence, tight enough to " +
+  "fit a small card.";
 
 const TOSSUP_TOOL = {
   name: "ledger_entry",
