@@ -12,6 +12,10 @@ import '../widgets/article_thumbnail.dart';
 String relativeTime(DateTime? t) {
   if (t == null) return '';
   final d = DateTime.now().difference(t);
+  // A source feed's published_at can land slightly ahead of our clock (feed
+  // clock skew, or an article ingested right around its own publish time) --
+  // never show a negative duration.
+  if (d.isNegative) return 'just now';
   if (d.inMinutes < 60) return '${d.inMinutes}m ago';
   if (d.inHours < 24) return '${d.inHours}h ago';
   return '${d.inDays}d ago';
