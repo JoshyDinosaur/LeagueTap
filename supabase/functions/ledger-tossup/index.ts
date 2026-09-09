@@ -105,6 +105,8 @@ type Candidate = {
   manager_name: string;
   week: number;
   slot: string;
+  starterId: string;
+  benchId: string;
   starterName: string;
   benchName: string;
   volLabel: string;
@@ -282,6 +284,8 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
           manager_name: manager,
           week,
           slot,
+          starterId,
+          benchId: best.id,
           starterName,
           benchName,
           volLabel: label,
@@ -320,6 +324,8 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
       text: entry.text,
       category: "toss_up",
       points_left_on_bench: c.margin, // internal ranking value only -- app never renders this field
+      starter_player_id: c.starterId,
+      bench_player_id: c.benchId,
     };
   }));
   const newRows = results.filter((r) => r !== null);

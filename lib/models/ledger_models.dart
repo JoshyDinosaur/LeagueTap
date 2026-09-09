@@ -10,6 +10,12 @@ class LedgerItem {
   final String text;
   final String category; // blunder | steal | streak | toss_up
   final double? pointsLeftOnBench;
+  // Only set on category == 'toss_up' rows -- the two Sleeper player ids
+  // being compared, so the card can open get-tossup-detail's page.
+  final String? starterPlayerId;
+  final String? benchPlayerId;
+
+  bool get isTossUp => category == 'toss_up' && starterPlayerId != null && benchPlayerId != null;
 
   LedgerItem({
     required this.id,
@@ -19,6 +25,8 @@ class LedgerItem {
     required this.text,
     required this.category,
     this.pointsLeftOnBench,
+    this.starterPlayerId,
+    this.benchPlayerId,
   });
 
   factory LedgerItem.fromJson(Map<String, dynamic> j) => LedgerItem(
@@ -29,5 +37,7 @@ class LedgerItem {
         text: j['text']?.toString() ?? '',
         category: j['category']?.toString() ?? 'blunder',
         pointsLeftOnBench: (j['points_left_on_bench'] as num?)?.toDouble(),
+        starterPlayerId: j['starter_player_id']?.toString(),
+        benchPlayerId: j['bench_player_id']?.toString(),
       );
 }

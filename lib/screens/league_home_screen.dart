@@ -8,6 +8,7 @@ import '../services/league_feed_service.dart';
 import '../services/league_lineups_service.dart';
 import '../theme.dart';
 import 'feed_screen.dart' show categoryMeta, relativeTime, openItem;
+import 'tossup_detail_screen.dart';
 
 class LeagueHomeTab extends StatefulWidget {
   final String leagueId;
@@ -335,13 +336,13 @@ class _LedgerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = meta[item.category] ?? meta['blunder']!;
-    return Container(
+    final card = Container(
       width: 240,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: LT.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: LT.border),
+        border: Border.all(color: item.isTossUp ? LT.accent.withOpacity(0.6) : LT.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,8 +393,28 @@ class _LedgerCard extends StatelessWidget {
               ),
             ),
           ),
+          if (item.isTossUp) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text('SEE THE CASE',
+                    style: LT.mono(size: 9, weight: FontWeight.w700, color: LT.accent, letterSpacing: 0.6)),
+                const SizedBox(width: 2),
+                const Icon(Icons.chevron_right, size: 14, color: LT.accent),
+              ],
+            ),
+          ],
         ],
       ),
+    );
+    if (!item.isTossUp) return card;
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => TossupDetailScreen(item: item)),
+      ),
+      behavior: HitTestBehavior.opaque,
+      child: card,
     );
   }
 }
