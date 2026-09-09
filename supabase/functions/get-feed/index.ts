@@ -31,6 +31,8 @@ const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const BLURB_VERSION = "v4";
 const TEAM_BLURBS = 10;     // team items that get an AI blurb
 const LEAGUE_BLURBS = 6;    // league items that get an AI blurb
+const CANDIDATE_POOL_MULTIPLIER = 2; // score more items than we show, then
+                                     // keep only the highest-relevance ones
 const MAX_CONCURRENCY = 8;  // parallel Anthropic calls
 
 // Structured-output vocabularies (the model is constrained to these).
@@ -371,7 +373,11 @@ async function buildFeed(
   });
 
   // Candidates that should carry a blurb (top N with a matched roster player).
-  const candidates = items.slice(0, blurbCount).filter((x) => x.myIds.length);
+  // Score a wider pool than we'll show -- otherwise "top by impact_score/
+  // recency" locks in whatever news happened to be freshest, even a zero-
+  // impact roster-trim blurb, instead of the genuinely decision-worthy item.
+  const candidates = items.filter((x) => x.myIds.length)
+    .slice(0, blurbCount * CANDIDATE_POOL_MULTIPLIER);
 
   // ---- RETRIEVAL: authoritative context for the candidates ----
   // (1) Every player named across candidate articles (disambiguation table).
@@ -506,7 +512,7 @@ async function buildFeed(
   }
 
   const keyById = new Map(keyed.map((k) => [k.it.id, k.key]));
-  return items.map(({ it, myPlayers }) => {
+  const results = items.map(({ it, myPlayers }) => {
     const key = keyById.get(it.id);
     const blurb = key ? cacheMap.get(`${it.id}|${key}`) ?? null : null;
     const persona = personaFor(it.reporter_type);
@@ -536,6 +542,14 @@ async function buildFeed(
       tags: blurb?.tags ?? [],
     };
   });
+
+  // Surface the most decision-relevant items first -- the client uses
+  // results[0] as the hero and the next several as the "For Your Team"
+  // panel, so ordering IS prioritization. Sort by the model's own
+  // relevance score (nulls -- items outside the scored candidate pool --
+  // sort last) instead of raw impact_score/recency.
+  results.sort((a, b) => (b.relevance ?? -1) - (a.relevance ?? -1));
+  return results;
 }
 
 // ---------------------------------------------------------------------------
