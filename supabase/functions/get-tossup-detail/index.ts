@@ -8,10 +8,12 @@
 //       any one card isn't shown in a vacuum.
 //   (2) articles: the most relevant news/blurbs tagged to the two players
 //       behind THIS specific decision (starter vs. bench option), when the
-//       row has them. toss_up rows always do; blunder rows do when
-//       ledger-report found a clear worst-starter/best-bench pair. steal
-//       and streak rows are whole-lineup or multi-week calls with no single
-//       pair to point at, so this section is simply omitted for those.
+//       row has them. toss_up, blunder, and steal rows always have a pair
+//       (ledger-report computes one for each); streak rows are a multi-week
+//       pattern with no single pair, so this section is simply omitted for
+//       those. Both halves' entries also carry a stat_comparison -- each
+//       player's real box-score stats (never fantasy points), computed once
+//       by ledger-report -- for the detail page's grid, when present.
 //
 // NOTE: this is NOT a toss-up-specific win/loss grade -- it's the manager's
 // overall weekly-decision record (from ledger-report), the data that
@@ -54,7 +56,7 @@ Deno.serve(async (req) => {
     .from("ledger_items")
     .select(
       "id, league_id, season, week, roster_id, manager_name, headline, text, " +
-      "category, starter_player_id, bench_player_id",
+      "category, starter_player_id, bench_player_id, stat_comparison",
     )
     .eq("id", ledgerItemId)
     .maybeSingle();
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
   // ---- (2) This manager's aggregated Ledger record in this league ----
   const { data: history } = await supabase
     .from("ledger_items")
-    .select("week, category, headline, text, points_left_on_bench")
+    .select("week, category, headline, text, points_left_on_bench, stat_comparison")
     .eq("league_id", item.league_id)
     .eq("roster_id", item.roster_id)
     .order("week", { ascending: false });
@@ -149,6 +151,7 @@ Deno.serve(async (req) => {
     .map((h: any) => ({
       week: h.week, category: h.category, headline: h.headline, text: h.text,
       points_left_on_bench: h.points_left_on_bench,
+      stat_comparison: h.stat_comparison ?? null,
     }));
 
   return new Response(JSON.stringify({
@@ -156,6 +159,7 @@ Deno.serve(async (req) => {
     tossup: {
       id: item.id, week: item.week, manager_name: item.manager_name,
       headline: item.headline, text: item.text, category: item.category,
+      stat_comparison: item.stat_comparison ?? null,
     },
     articles,
     record: {

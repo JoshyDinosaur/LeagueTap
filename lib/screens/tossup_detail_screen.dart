@@ -136,8 +136,98 @@ class _TossupHeader extends StatelessWidget {
           const SizedBox(height: 6),
           Text(tossup.text,
               style: LT.serif(size: 13.5, weight: FontWeight.w400, height: 1.4, color: LT.textDim, style: FontStyle.italic)),
+          if (tossup.statComparison != null) ...[
+            const SizedBox(height: 10),
+            _StatComparisonGrid(comparison: tossup.statComparison!),
+          ],
         ],
       ),
+    );
+  }
+}
+
+// The starter-vs-bench grid behind a blunder/steal: each player's own real
+// box-score stats (yards, TDs, receptions -- never a fantasy point total),
+// side by side, so the reader can see the performance gap for themselves
+// instead of being told a single point differential.
+class _StatComparisonGrid extends StatelessWidget {
+  final StatComparison comparison;
+  const _StatComparisonGrid({required this.comparison});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: LT.surfaceHi,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: LT.border),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: _StatComparisonColumn(label: 'STARTED', side: comparison.starter)),
+            Container(width: 1, margin: const EdgeInsets.symmetric(horizontal: 10), color: LT.border),
+            Expanded(child: _StatComparisonColumn(label: 'BENCHED', side: comparison.bench)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatComparisonColumn extends StatelessWidget {
+  final String label;
+  final StatComparisonSide side;
+  const _StatComparisonColumn({required this.label, required this.side});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: LT.mono(size: 8.5, weight: FontWeight.w700, color: LT.textFaint, letterSpacing: 0.6)),
+        const SizedBox(height: 5),
+        Row(children: [
+          if ((side.position ?? '').isNotEmpty) ...[
+            Text(side.position!,
+                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: LT.positionColor(side.position))),
+            const SizedBox(width: 4),
+          ],
+          Expanded(
+            child: Text(side.name,
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: LT.serif(size: 12.5, weight: FontWeight.w700)),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        if (side.stats.isEmpty)
+          Text('No stat line', style: TextStyle(fontSize: 10.5, color: LT.textFaint, fontStyle: FontStyle.italic))
+        else
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: side.stats.map((s) => _StatChip(stat: s)).toList(),
+          ),
+      ],
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final StatLine stat;
+  const _StatChip({required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = stat.value;
+    final display = v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(display, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: LT.text)),
+        Text(stat.label, style: LT.mono(size: 8, weight: FontWeight.w600, color: LT.textFaint, letterSpacing: 0.4)),
+      ],
     );
   }
 }
@@ -317,6 +407,10 @@ class _RecordRow extends StatelessWidget {
           const SizedBox(height: 4),
           Text(entry.text,
               style: LT.serif(size: 12, weight: FontWeight.w400, height: 1.35, color: LT.textDim)),
+          if (entry.statComparison != null) ...[
+            const SizedBox(height: 8),
+            _StatComparisonGrid(comparison: entry.statComparison!),
+          ],
         ],
       ),
     );

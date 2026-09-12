@@ -26,6 +26,7 @@ class TossupSummary {
   final String headline;
   final String text;
   final String category;
+  final StatComparison? statComparison;
 
   TossupSummary({
     required this.id,
@@ -34,6 +35,7 @@ class TossupSummary {
     required this.headline,
     required this.text,
     required this.category,
+    this.statComparison,
   });
 
   factory TossupSummary.fromJson(Map<String, dynamic> j) => TossupSummary(
@@ -43,6 +45,59 @@ class TossupSummary {
         headline: j['headline']?.toString() ?? '',
         text: j['text']?.toString() ?? '',
         category: j['category']?.toString() ?? '',
+        statComparison: j['stat_comparison'] is Map
+            ? StatComparison.fromJson((j['stat_comparison'] as Map).cast<String, dynamic>())
+            : null,
+      );
+}
+
+// A single box-score stat (yards, TDs, receptions, ...) -- never a fantasy
+// point total -- backing the starter-vs-bench grid on a blunder/steal.
+class StatLine {
+  final String key;
+  final String label;
+  final num value;
+
+  StatLine({required this.key, required this.label, required this.value});
+
+  factory StatLine.fromJson(Map<String, dynamic> j) => StatLine(
+        key: j['key']?.toString() ?? '',
+        label: j['label']?.toString() ?? '',
+        value: (j['value'] as num?) ?? 0,
+      );
+}
+
+class StatComparisonSide {
+  final String id;
+  final String name;
+  final String? position;
+  final List<StatLine> stats;
+
+  StatComparisonSide({required this.id, required this.name, this.position, required this.stats});
+
+  factory StatComparisonSide.fromJson(Map<String, dynamic> j) => StatComparisonSide(
+        id: j['id']?.toString() ?? '',
+        name: j['name']?.toString() ?? '',
+        position: j['position']?.toString(),
+        stats: (j['stats'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => StatLine.fromJson(e.cast<String, dynamic>()))
+            .toList(),
+      );
+}
+
+// The starter-vs-bench stat grid behind a blunder/steal call. Null on
+// entries generated before this existed, and on streak rows (a multi-week
+// pattern, not a single pair) -- callers should fall back to text-only.
+class StatComparison {
+  final StatComparisonSide starter;
+  final StatComparisonSide bench;
+
+  StatComparison({required this.starter, required this.bench});
+
+  factory StatComparison.fromJson(Map<String, dynamic> j) => StatComparison(
+        starter: StatComparisonSide.fromJson((j['starter'] as Map).cast<String, dynamic>()),
+        bench: StatComparisonSide.fromJson((j['bench'] as Map).cast<String, dynamic>()),
       );
 }
 
@@ -107,6 +162,7 @@ class ManagerRecordEntry {
   final String headline;
   final String text;
   final double? pointsLeftOnBench;
+  final StatComparison? statComparison;
 
   ManagerRecordEntry({
     required this.week,
@@ -114,6 +170,7 @@ class ManagerRecordEntry {
     required this.headline,
     required this.text,
     this.pointsLeftOnBench,
+    this.statComparison,
   });
 
   factory ManagerRecordEntry.fromJson(Map<String, dynamic> j) => ManagerRecordEntry(
@@ -122,6 +179,9 @@ class ManagerRecordEntry {
         headline: j['headline']?.toString() ?? '',
         text: j['text']?.toString() ?? '',
         pointsLeftOnBench: (j['points_left_on_bench'] as num?)?.toDouble(),
+        statComparison: j['stat_comparison'] is Map
+            ? StatComparison.fromJson((j['stat_comparison'] as Map).cast<String, dynamic>())
+            : null,
       );
 }
 

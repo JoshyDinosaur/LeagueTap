@@ -1,6 +1,11 @@
-// snapshot-lineups — captures one league's current-week starters, bench, and
-// each player's points-so-far, so "The Ledger" reporter has real history to
-// judge start/sit calls against.
+// snapshot-lineups — captures one league's current-week starters, bench,
+// each player's points-so-far, their raw box-score stats, and (for
+// starters) the roster slot they were started in, so "The Ledger" reporter
+// has real history to judge start/sit calls against: real stat categories
+// (yards, TDs, receptions) to point at instead of just point totals, and
+// enough slot info to only compare a starter against bench alternatives who
+// could actually have filled that slot (same position, or any FLEX-eligible
+// position for a flex slot).
 //
 // Run several times per week via cron as each game window wraps (Thu night,
 // Sun windows, Sun night, Mon night); the final call of the week passes
@@ -24,23 +29,56 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-type PlayerLine = { player_id: string; name: string; position: string | null; points: number };
+type PlayerLine = {
+  player_id: string;
+  name: string;
+  position: string | null;
+  points: number;
+  stats: Record<string, number> | null;
+  // The roster slot actually started in (RB, WR, FLEX, ...) -- only set for
+  // starters, so ledger-report can compare against position-eligible bench
+  // alternatives instead of the whole bench regardless of position.
+  slot?: string | null;
+};
 type Supabase = ReturnType<typeof createClient>;
 
 async function snapshotLeague(supabase: Supabase, leagueId: string, isFinal: boolean) {
-  const [stateRes, rostersRes, usersRes] = await Promise.all([
+  const [stateRes, leagueRes, rostersRes, usersRes] = await Promise.all([
     fetch("https://api.sleeper.app/v1/state/nfl"),
+    fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
     fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
     fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
   ]);
-  if (!stateRes.ok || !rostersRes.ok || !usersRes.ok) {
+  if (!stateRes.ok || !leagueRes.ok || !rostersRes.ok || !usersRes.ok) {
     return { league_id: leagueId, error: "sleeper fetch failed" };
   }
   const state = await stateRes.json();
   const season = String(state.season ?? new Date().getFullYear());
   const week = Number(state.week) > 0 ? Number(state.week) : 1;
+  const league = await leagueRes.json();
+  // Sleeper's matchup `starters` array order matches roster_positions order
+  // (minus BN) -- same assumption ledger-tossup already relies on for
+  // pre-game slot detection.
+  const nonBenchSlots: string[] = (league.roster_positions ?? []).filter((p: string) => p !== "BN");
   const rosters = await rostersRes.json() as any[];
   const users = await usersRes.json() as any[];
+
+  // Raw box-score stats (yards, TDs, receptions, etc.) for The Ledger's
+  // blunder/steal write-ups to point at -- best-effort, same pattern as the
+  // projections fetch in ledger-tossup. Missing entirely just means no
+  // stat_comparison gets computed downstream (fail-quiet).
+  const statsById: Record<string, Record<string, number>> = {};
+  try {
+    const statsRes = await fetch(
+      `https://api.sleeper.app/stats/nfl/${season}/${week}?season_type=regular`,
+    );
+    if (statsRes.ok) {
+      const rows = await statsRes.json() as any[];
+      for (const r of rows ?? []) {
+        if (r?.player_id && r?.stats) statsById[String(r.player_id)] = r.stats;
+      }
+    }
+  } catch (_) { /* best-effort */ }
 
   const nameByUser: Record<string, string> = {};
   for (const u of users) {
@@ -74,15 +112,17 @@ async function snapshotLeague(supabase: Supabase, leagueId: string, isFinal: boo
     const allPlayerIds: string[] = (m.players ?? []).map(String);
     const benchIds = allPlayerIds.filter((id) => !starterIds.includes(id));
 
-    const line = (id: string): PlayerLine => ({
+    const line = (id: string, slot: string | null = null): PlayerLine => ({
       player_id: id,
       name: playerById[id]?.name ?? "Unknown",
       position: playerById[id]?.position ?? null,
       points: Number(pointsById[id] ?? 0),
+      stats: statsById[id] ?? null,
+      slot,
     });
 
-    const starters = starterIds.map(line);
-    const bench = benchIds.map(line);
+    const starters = starterIds.map((id, idx) => line(id, nonBenchSlots[idx] ?? playerById[id]?.position ?? null));
+    const bench = benchIds.map((id) => line(id));
     const starterPoints = starters.reduce((sum, p) => sum + p.points, 0);
     const bestBench = bench.reduce(
       (best: PlayerLine | null, p) => (!best || p.points > best.points ? p : best),

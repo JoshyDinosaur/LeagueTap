@@ -35,6 +35,7 @@
 // Secrets: ANTHROPIC_API_KEY. SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY auto-injected.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { eligiblePositions } from "../_shared/lineup_decisions.ts";
 
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const TOSSUP_MARGIN = 2.5; // projected-point gap at/under which a slot counts as a toss-up (internal only)
@@ -75,16 +76,6 @@ const TOSSUP_TOOL = {
     required: ["headline", "text"],
   },
 };
-
-const SLOT_ELIGIBLE: Record<string, string[]> = {
-  FLEX: ["RB", "WR", "TE"],
-  WRRB_FLEX: ["RB", "WR"],
-  REC_FLEX: ["WR", "TE"],
-  SUPER_FLEX: ["QB", "RB", "WR", "TE"],
-};
-function eligiblePositions(slot: string): string[] {
-  return SLOT_ELIGIBLE[slot] ?? [slot];
-}
 
 // Excluded entirely -- no interesting usage story at these spots, and they
 // dilute the carousel with low-stakes toss-ups.

@@ -5,14 +5,17 @@
 // get-ledger-feed as a distinct section on the LeagueTap tab (not merged
 // into the news-sourced feed).
 //
-// v1 approximation: a "blunder" compares a manager's best bench score
-// against their WORST starter's score that week, regardless of position —
-// a simplification (not position-matched), good enough for a fun recap, not
-// a precise "optimal lineup" calculator. That worst-starter/best-bench pair
-// is also persisted as starter_player_id/bench_player_id, so the card's
-// detail page (get-tossup-detail) can show the articles behind that exact
-// call, same as it does for toss_up rows. steal/streak rows leave both
-// null -- they're whole-lineup or multi-week calls, not a single pair.
+// A "blunder" is the starter whose position-eligible bench alternative most
+// outscored them that week (same position for a straight slot; any
+// FLEX-eligible position for a flex slot -- see _shared/lineup_decisions.ts).
+// A "steal" is the mirror image: the starter who most cleared their own
+// eligible bench alternative -- the call that paid off the most. Both pairs
+// are persisted as starter_player_id/bench_player_id, so the card's detail
+// page (get-tossup-detail) can show the articles behind that exact call,
+// same as it does for toss_up rows -- and both get a stat_comparison (each
+// player's real box-score stats, never fantasy points) for the detail
+// page's grid. streak rows leave both null -- they're a multi-week pattern,
+// not a single pair.
 //
 // Multi-league: cron calls this with no league_id, and it fans out across
 // every row in tracked_leagues (see track-league) instead of one hardcoded
@@ -22,10 +25,12 @@
 // Secrets: ANTHROPIC_API_KEY. SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY auto-injected.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { statLineFor, type StatLine } from "../_shared/position_stats.ts";
+import { bestSteal, worstBlunder, type SlotPlayer } from "../_shared/lineup_decisions.ts";
 
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const BLUNDER_THRESHOLD = 8; // points left on the bench to count as a real story
-const STEAL_MIN_STARTER_POINTS = 20; // a big week, worth calling out
+const STEAL_THRESHOLD = 15; // points a starter cleared the best bench option by, to count as a real story
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -53,6 +58,9 @@ const LEDGER_TOOL = {
 
 type Supabase = ReturnType<typeof createClient>;
 
+type StatComparisonSide = { id: string; name: string; position: string | null; stats: StatLine[] };
+type StatComparison = { starter: StatComparisonSide; bench: StatComparisonSide };
+
 type Candidate = {
   roster_id: number;
   manager_name: string;
@@ -60,12 +68,28 @@ type Candidate = {
   category: "blunder" | "steal" | "streak";
   points_left_on_bench: number | null;
   prompt: string;
-  // Only set for "blunder": the specific worst-starter/best-bench pair that
-  // caused it, so the card can later open get-tossup-detail's article view.
-  // steal/streak are whole-lineup or multi-week calls with no single pair.
+  // Set for "blunder" and "steal": the specific starter/bench pair behind
+  // the call, so the card can later open get-tossup-detail's article view.
+  // streak is a multi-week pattern with no single pair.
   starterId?: string;
   benchId?: string;
+  statComparison?: StatComparison;
 };
+
+// Real box-score stats (never fantasy points) for the two players behind a
+// blunder/steal call, for the detail page's grid. Returns undefined when
+// either side has no player id, or neither side has any stat worth showing
+// (e.g. a bye-week zero, or the stats fetch failed that week).
+function buildStatComparison(starter: SlotPlayer, bench: SlotPlayer): StatComparison | undefined {
+  if (!starter?.player_id || !bench?.player_id) return undefined;
+  const starterStats = statLineFor(starter.position, starter.stats);
+  const benchStats = statLineFor(bench.position, bench.stats);
+  if (!starterStats.length && !benchStats.length) return undefined;
+  return {
+    starter: { id: String(starter.player_id), name: starter.name, position: starter.position ?? null, stats: starterStats },
+    bench: { id: String(bench.player_id), name: bench.name, position: bench.position ?? null, stats: benchStats },
+  };
+}
 
 async function writeEntry(c: Candidate): Promise<{ headline: string; text: string } | null> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -115,36 +139,37 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
   const candidates: Candidate[] = [];
 
   for (const t of teams) {
-    const starters: any[] = t.starters ?? [];
+    const starters: SlotPlayer[] = t.starters ?? [];
+    const bench: SlotPlayer[] = t.bench ?? [];
     const manager = t.manager_name || "A manager";
-    if (starters.length && t.best_bench_points != null) {
-      const worstStarter = starters.reduce(
-        (worst: any, p: any) => (!worst || p.points < worst.points ? p : worst),
-        null,
-      );
-      const bench: any[] = t.bench ?? [];
-      const bestBench = bench.reduce(
-        (best: any, p: any) => (!best || p.points > best.points ? p : best),
-        null,
-      );
-      const gap = (t.best_bench_points ?? 0) - (worstStarter?.points ?? 0);
-      if (worstStarter && gap >= BLUNDER_THRESHOLD) {
-        candidates.push({
-          roster_id: t.roster_id,
-          manager_name: manager,
-          week: t.week,
-          category: "blunder",
-          points_left_on_bench: gap,
-          prompt:
-            `${manager} started ${worstStarter.name} (${worstStarter.points} pts) in Week ${t.week} ` +
-            `while ${t.best_bench_player} sat on the bench and scored ${t.best_bench_points} pts — ` +
-            `${gap.toFixed(1)} points left on the bench.`,
-          starterId: worstStarter.player_id ? String(worstStarter.player_id) : undefined,
-          benchId: bestBench?.player_id ? String(bestBench.player_id) : undefined,
-        });
-      }
+    if (!starters.length || !bench.length) continue;
+
+    const blunder = worstBlunder(starters, bench);
+    if (blunder && blunder.gap >= BLUNDER_THRESHOLD) {
+      const { starter, bench: alt, gap } = blunder;
+      candidates.push({
+        roster_id: t.roster_id,
+        manager_name: manager,
+        week: t.week,
+        category: "blunder",
+        points_left_on_bench: gap,
+        prompt:
+          `${manager} started ${starter.name} (${starter.points} pts) in Week ${t.week} while ` +
+          `${alt.name} sat on the bench and scored ${alt.points} pts — ${gap.toFixed(1)} points left ` +
+          `on the bench.`,
+        starterId: starter.player_id ? String(starter.player_id) : undefined,
+        benchId: alt.player_id ? String(alt.player_id) : undefined,
+        statComparison: buildStatComparison(starter, alt),
+      });
     }
-    if ((t.starter_points ?? 0) >= STEAL_MIN_STARTER_POINTS) {
+
+    // Steal: the mirror of a blunder -- the starter who most CLEARED their
+    // own position-eligible bench alternative, i.e. the call that paid off
+    // the most. Gives steals a concrete single-player decision (the old
+    // rule was just a whole-lineup point total with no pair to point at).
+    const steal = bestSteal(starters, bench);
+    if (steal && steal.gap >= STEAL_THRESHOLD) {
+      const { starter, bench: alt, gap } = steal;
       candidates.push({
         roster_id: t.roster_id,
         manager_name: manager,
@@ -152,8 +177,11 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
         category: "steal",
         points_left_on_bench: null,
         prompt:
-          `${manager}'s starting lineup put up ${t.starter_points} points in Week ${t.week} — one of ` +
-          `the best-managed rosters in the league this week.`,
+          `${manager} started ${starter.name} (${starter.points} pts) in Week ${t.week} over benched ` +
+          `${alt.name} (${alt.points} pts) — a call that paid off by ${gap.toFixed(1)} points.`,
+        starterId: starter.player_id ? String(starter.player_id) : undefined,
+        benchId: alt.player_id ? String(alt.player_id) : undefined,
+        statComparison: buildStatComparison(starter, alt),
       });
     }
   }
@@ -161,7 +189,7 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
   if (week >= 3) {
     const { data: recent } = await supabase
       .from("weekly_lineups")
-      .select("roster_id, manager_name, week, best_bench_points, starters")
+      .select("roster_id, manager_name, week, starters, bench")
       .eq("league_id", leagueId)
       .eq("is_final", true)
       .lt("week", week)
@@ -171,11 +199,8 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
     for (const [rosterId, history] of Object.entries(byRoster)) {
       let blunderWeeks = 0;
       for (const h of history) {
-        const worst = (h.starters ?? []).reduce(
-          (w: any, p: any) => (!w || p.points < w.points ? p : w),
-          null,
-        );
-        if (worst && (h.best_bench_points ?? 0) - worst.points >= BLUNDER_THRESHOLD) blunderWeeks++;
+        const blunder = worstBlunder(h.starters ?? [], h.bench ?? []);
+        if (blunder && blunder.gap >= BLUNDER_THRESHOLD) blunderWeeks++;
       }
       if (blunderWeeks >= 2) {
         const manager = history[0]?.manager_name || "A manager";
@@ -208,6 +233,7 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
       points_left_on_bench: c.points_left_on_bench,
       starter_player_id: c.starterId ?? null,
       bench_player_id: c.benchId ?? null,
+      stat_comparison: c.statComparison ?? null,
     };
   }));
   const newRows = results.filter((r) => r !== null);
