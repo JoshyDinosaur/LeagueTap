@@ -10,12 +10,15 @@ class LedgerItem {
   final String text;
   final String category; // blunder | steal | streak | toss_up
   final double? pointsLeftOnBench;
-  // Only set on category == 'toss_up' rows -- the two Sleeper player ids
-  // being compared, so the card can open get-tossup-detail's page.
+  // Set when this decision has two identifiable Sleeper player ids to
+  // compare (currently: toss_up rows always; blunder rows when a clear
+  // worst-starter/best-bench pair caused it). Lets the card's detail page
+  // show the articles behind that specific choice, not just the manager's
+  // aggregate record.
   final String? starterPlayerId;
   final String? benchPlayerId;
 
-  bool get isTossUp => category == 'toss_up' && starterPlayerId != null && benchPlayerId != null;
+  bool get hasPlayerContext => starterPlayerId != null && benchPlayerId != null;
 
   LedgerItem({
     required this.id,

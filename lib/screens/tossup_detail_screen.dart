@@ -6,10 +6,12 @@ import '../services/ledger_service.dart';
 import '../theme.dart';
 import 'feed_screen.dart' show relativeTime, openItem;
 
-// The page a "toss_up" Ledger card opens into: the articles actually behind
-// that specific decision (upper half), and the manager's aggregated Ledger
-// decision record in this league (lower half) -- so the toss-up isn't shown
-// in a vacuum.
+// The page ANY Ledger card opens into: the manager's aggregated Ledger
+// decision record in this league (upper half), and -- when this specific
+// decision has two identifiable players behind it (toss_up rows always;
+// blunder rows sometimes) -- the articles actually behind that call
+// (lower half). steal/streak rows and blunder rows without a clean pair
+// just show the record half; there's no single choice to point at.
 class TossupDetailScreen extends StatefulWidget {
   final LedgerItem item;
   const TossupDetailScreen({super.key, required this.item});
@@ -57,13 +59,6 @@ class _TossupDetailScreenState extends State<TossupDetailScreen> {
             children: [
               _TossupHeader(item: widget.item, tossup: detail.tossup),
               const SizedBox(height: 22),
-              _SectionLabel('THE CASE — ARTICLES IN PLAY'),
-              const SizedBox(height: 10),
-              if (detail.articles.isEmpty)
-                _EmptyNote("No tagged coverage found for either player yet.")
-              else
-                ...detail.articles.map((a) => _ArticleCard(article: a)),
-              const SizedBox(height: 28),
               _SectionLabel("${(detail.record.managerName ?? widget.item.managerName ?? 'MANAGER').toUpperCase()}'S RECORD"),
               const SizedBox(height: 10),
               _RecordSummary(record: detail.record),
@@ -72,6 +67,15 @@ class _TossupDetailScreenState extends State<TossupDetailScreen> {
                 _EmptyNote("No graded blunders or steals yet this season.")
               else
                 ...detail.record.recent.map((e) => _RecordRow(entry: e)),
+              if (widget.item.hasPlayerContext) ...[
+                const SizedBox(height: 28),
+                _SectionLabel('THE CASE — ARTICLES IN PLAY'),
+                const SizedBox(height: 10),
+                if (detail.articles.isEmpty)
+                  _EmptyNote("No tagged coverage found for either player yet.")
+                else
+                  ...detail.articles.map((a) => _ArticleCard(article: a)),
+              ],
             ],
           );
         },
@@ -80,6 +84,15 @@ class _TossupDetailScreenState extends State<TossupDetailScreen> {
   }
 }
 
+// Same category -> (label, color) mapping as the Ledger card list, so the
+// detail page's badge matches the card the user tapped.
+const _categoryMeta = {
+  'blunder': (label: 'BLUNDER', color: LT.hot),
+  'steal': (label: 'STEAL', color: Color(0xFF7DD3A8)),
+  'streak': (label: 'STREAK', color: Color(0xFFFFB020)),
+  'toss_up': (label: 'TOSS-UP', color: Color(0xFF6FA8DC)),
+};
+
 class _TossupHeader extends StatelessWidget {
   final LedgerItem item;
   final TossupSummary tossup;
@@ -87,12 +100,13 @@ class _TossupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final m = _categoryMeta[tossup.category] ?? _categoryMeta['blunder']!;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: LT.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF6FA8DC), width: 1),
+        border: Border.all(color: m.color, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,11 +115,11 @@ class _TossupHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF6FA8DC), width: 1),
+                border: Border.all(color: m.color, width: 1),
                 borderRadius: BorderRadius.circular(3),
               ),
-              child: Text('TOSS-UP',
-                  style: LT.mono(size: 9.5, weight: FontWeight.w700, color: const Color(0xFF6FA8DC))),
+              child: Text(m.label,
+                  style: LT.mono(size: 9.5, weight: FontWeight.w700, color: m.color)),
             ),
             const SizedBox(width: 8),
             Text('WEEK ${tossup.week}',

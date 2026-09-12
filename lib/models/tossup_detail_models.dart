@@ -25,6 +25,7 @@ class TossupSummary {
   final String? managerName;
   final String headline;
   final String text;
+  final String category;
 
   TossupSummary({
     required this.id,
@@ -32,6 +33,7 @@ class TossupSummary {
     this.managerName,
     required this.headline,
     required this.text,
+    required this.category,
   });
 
   factory TossupSummary.fromJson(Map<String, dynamic> j) => TossupSummary(
@@ -40,6 +42,7 @@ class TossupSummary {
         managerName: j['manager_name']?.toString(),
         headline: j['headline']?.toString() ?? '',
         text: j['text']?.toString() ?? '',
+        category: j['category']?.toString() ?? '',
       );
 }
 

@@ -8,7 +8,11 @@
 // v1 approximation: a "blunder" compares a manager's best bench score
 // against their WORST starter's score that week, regardless of position —
 // a simplification (not position-matched), good enough for a fun recap, not
-// a precise "optimal lineup" calculator.
+// a precise "optimal lineup" calculator. That worst-starter/best-bench pair
+// is also persisted as starter_player_id/bench_player_id, so the card's
+// detail page (get-tossup-detail) can show the articles behind that exact
+// call, same as it does for toss_up rows. steal/streak rows leave both
+// null -- they're whole-lineup or multi-week calls, not a single pair.
 //
 // Multi-league: cron calls this with no league_id, and it fans out across
 // every row in tracked_leagues (see track-league) instead of one hardcoded
@@ -56,6 +60,11 @@ type Candidate = {
   category: "blunder" | "steal" | "streak";
   points_left_on_bench: number | null;
   prompt: string;
+  // Only set for "blunder": the specific worst-starter/best-bench pair that
+  // caused it, so the card can later open get-tossup-detail's article view.
+  // steal/streak are whole-lineup or multi-week calls with no single pair.
+  starterId?: string;
+  benchId?: string;
 };
 
 async function writeEntry(c: Candidate): Promise<{ headline: string; text: string } | null> {
@@ -113,6 +122,11 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
         (worst: any, p: any) => (!worst || p.points < worst.points ? p : worst),
         null,
       );
+      const bench: any[] = t.bench ?? [];
+      const bestBench = bench.reduce(
+        (best: any, p: any) => (!best || p.points > best.points ? p : best),
+        null,
+      );
       const gap = (t.best_bench_points ?? 0) - (worstStarter?.points ?? 0);
       if (worstStarter && gap >= BLUNDER_THRESHOLD) {
         candidates.push({
@@ -125,6 +139,8 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
             `${manager} started ${worstStarter.name} (${worstStarter.points} pts) in Week ${t.week} ` +
             `while ${t.best_bench_player} sat on the bench and scored ${t.best_bench_points} pts — ` +
             `${gap.toFixed(1)} points left on the bench.`,
+          starterId: worstStarter.player_id ? String(worstStarter.player_id) : undefined,
+          benchId: bestBench?.player_id ? String(bestBench.player_id) : undefined,
         });
       }
     }
@@ -190,6 +206,8 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
       text: entry.text,
       category: c.category,
       points_left_on_bench: c.points_left_on_bench,
+      starter_player_id: c.starterId ?? null,
+      bench_player_id: c.benchId ?? null,
     };
   }));
   const newRows = results.filter((r) => r !== null);

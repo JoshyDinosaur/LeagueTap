@@ -342,7 +342,7 @@ class _LedgerCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: LT.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: item.isTossUp ? LT.accent.withOpacity(0.6) : LT.border),
+        border: Border.all(color: m.color.withOpacity(0.45)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,22 +393,19 @@ class _LedgerCard extends StatelessWidget {
               ),
             ),
           ),
-          if (item.isTossUp) ...[
-            const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text('SEE THE CASE',
-                    style: LT.mono(size: 9, weight: FontWeight.w700, color: LT.accent, letterSpacing: 0.6)),
-                const SizedBox(width: 2),
-                const Icon(Icons.chevron_right, size: 14, color: LT.accent),
-              ],
-            ),
-          ],
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(item.hasPlayerContext ? 'SEE THE CASE' : 'SEE THE RECORD',
+                  style: LT.mono(size: 9, weight: FontWeight.w700, color: LT.accent, letterSpacing: 0.6)),
+              const SizedBox(width: 2),
+              const Icon(Icons.chevron_right, size: 14, color: LT.accent),
+            ],
+          ),
         ],
       ),
     );
-    if (!item.isTossUp) return card;
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => TossupDetailScreen(item: item)),

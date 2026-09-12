@@ -1,13 +1,17 @@
-// get-tossup-detail — the page a "toss_up" Ledger card opens into.
+// get-tossup-detail — the page ANY Ledger card opens into (blunder, steal,
+// streak, or toss_up -- name is legacy from when this only handled toss-ups).
 //
 // Two halves:
-//   (1) articles: the most relevant news/blurbs actually tagged to the two
-//       players in this specific toss-up (starter vs. top bench option),
-//       so the manager can see exactly what's driving the coin-flip.
-//   (2) record: this manager's aggregated Ledger history in this league --
+//   (1) record: this manager's aggregated Ledger history in this league --
 //       how many blunders (benched a better score) vs steals (bench pick
 //       would've been big) they've had, plus their most recent entries, so
-//       the toss-up isn't shown in a vacuum.
+//       any one card isn't shown in a vacuum.
+//   (2) articles: the most relevant news/blurbs tagged to the two players
+//       behind THIS specific decision (starter vs. bench option), when the
+//       row has them. toss_up rows always do; blunder rows do when
+//       ledger-report found a clear worst-starter/best-bench pair. steal
+//       and streak rows are whole-lineup or multi-week calls with no single
+//       pair to point at, so this section is simply omitted for those.
 //
 // NOTE: this is NOT a toss-up-specific win/loss grade -- it's the manager's
 // overall weekly-decision record (from ledger-report), the data that
@@ -59,12 +63,6 @@ Deno.serve(async (req) => {
       status: 404, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
-  if (item.category !== "toss_up") {
-    return new Response(JSON.stringify({ error: "not a toss_up entry" }), {
-      status: 400, headers: { ...cors, "Content-Type": "application/json" },
-    });
-  }
-
   const playerIds = [item.starter_player_id, item.bench_player_id].filter(Boolean) as string[];
 
   // ---- (1) Articles relevant to the two players in this toss-up ----
@@ -157,7 +155,7 @@ Deno.serve(async (req) => {
     ok: true,
     tossup: {
       id: item.id, week: item.week, manager_name: item.manager_name,
-      headline: item.headline, text: item.text,
+      headline: item.headline, text: item.text, category: item.category,
     },
     articles,
     record: {
