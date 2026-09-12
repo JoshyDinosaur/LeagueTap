@@ -40,8 +40,11 @@ const cors = {
 const LEDGER_VOICE =
   "You are The Ledger — LeagueTap's receipts-keeper. Dry, deadpan, exact. You don't gloat and you " +
   "don't console; you just state what happened and let the numbers do the roasting (or the bragging). " +
-  "One or two sentences, always naming the manager and the players involved. Never generic — always " +
-  "grounded in the specific numbers given.";
+  "One or two sentences, always naming the manager and the players involved. You are NEVER given a " +
+  "fantasy point total and must never state, imply, or estimate one — no point totals, no point " +
+  "swings, no percentages. When real box-score stats are given (yards, touchdowns, receptions, " +
+  "carries, ...), ground the entry in those. When none are given, just state the plain fact of the " +
+  "decision (who was started, who was benched) without inventing or implying any number.";
 
 const LEDGER_TOOL = {
   name: "ledger_entry",
@@ -49,8 +52,13 @@ const LEDGER_TOOL = {
   input_schema: {
     type: "object",
     properties: {
-      headline: { type: "string", description: "Short, specific headline (under 8 words)." },
-      text: { type: "string", description: "The Ledger's one-or-two-sentence entry." },
+      headline: { type: "string", description: "Short, specific headline (under 8 words), no numbers." },
+      text: {
+        type: "string",
+        description:
+          "The Ledger's one-or-two-sentence entry, grounded in the box-score stats given (if any) — " +
+          "never a fantasy point total, point swing, or percentage.",
+      },
     },
     required: ["headline", "text"],
   },
@@ -75,6 +83,14 @@ type Candidate = {
   benchId?: string;
   statComparison?: StatComparison;
 };
+
+// Turns a player's stat line into plain-language facts for Haiku to work
+// from -- e.g. "6 receptions, 48 receiving yards, 1 receiving touchdown".
+// Never a fantasy point total; these are always real box-score counts.
+function statLineText(stats: StatLine[]): string | null {
+  if (!stats.length) return null;
+  return stats.map((s) => `${s.value} ${s.label.toLowerCase()}`).join(", ");
+}
 
 // Real box-score stats (never fantasy points) for the two players behind a
 // blunder/steal call, for the detail page's grid. Returns undefined when
@@ -147,6 +163,8 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
     const blunder = worstBlunder(starters, bench);
     if (blunder && blunder.gap >= BLUNDER_THRESHOLD) {
       const { starter, bench: alt, gap } = blunder;
+      const starterLine = statLineText(statLineFor(starter.position, starter.stats));
+      const benchLine = statLineText(statLineFor(alt.position, alt.stats));
       candidates.push({
         roster_id: t.roster_id,
         manager_name: manager,
@@ -154,9 +172,13 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
         category: "blunder",
         points_left_on_bench: gap,
         prompt:
-          `${manager} started ${starter.name} (${starter.points} pts) in Week ${t.week} while ` +
-          `${alt.name} sat on the bench and scored ${alt.points} pts — ${gap.toFixed(1)} points left ` +
-          `on the bench.`,
+          `${manager} started ${starter.name} in Week ${t.week}` +
+          (starterLine ? ` (${starterLine})` : "") +
+          ` while ${alt.name} sat on the bench` +
+          (benchLine ? ` and put up ${benchLine}` : " and clearly outproduced them") +
+          `. Do not mention, imply, or estimate a fantasy point total, point swing, or percentage -- ` +
+          `describe this using only the stats given (if any) and the plain fact of who was started ` +
+          `vs. benched.`,
         starterId: starter.player_id ? String(starter.player_id) : undefined,
         benchId: alt.player_id ? String(alt.player_id) : undefined,
         statComparison: buildStatComparison(starter, alt),
@@ -169,7 +191,9 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
     // rule was just a whole-lineup point total with no pair to point at).
     const steal = bestSteal(starters, bench);
     if (steal && steal.gap >= STEAL_THRESHOLD) {
-      const { starter, bench: alt, gap } = steal;
+      const { starter, bench: alt } = steal;
+      const starterLine = statLineText(statLineFor(starter.position, starter.stats));
+      const benchLine = statLineText(statLineFor(alt.position, alt.stats));
       candidates.push({
         roster_id: t.roster_id,
         manager_name: manager,
@@ -177,8 +201,13 @@ async function reportLeague(supabase: Supabase, leagueId: string) {
         category: "steal",
         points_left_on_bench: null,
         prompt:
-          `${manager} started ${starter.name} (${starter.points} pts) in Week ${t.week} over benched ` +
-          `${alt.name} (${alt.points} pts) — a call that paid off by ${gap.toFixed(1)} points.`,
+          `${manager} started ${starter.name} in Week ${t.week}` +
+          (starterLine ? ` (${starterLine})` : "") +
+          ` over benched ${alt.name}` +
+          (benchLine ? ` (who managed only ${benchLine})` : "") +
+          ` -- a decision that paid off. Do not mention, imply, or estimate a fantasy point total, ` +
+          `point swing, or percentage -- describe this using only the stats given (if any) and the ` +
+          `plain fact of the decision.`,
         starterId: starter.player_id ? String(starter.player_id) : undefined,
         benchId: alt.player_id ? String(alt.player_id) : undefined,
         statComparison: buildStatComparison(starter, alt),

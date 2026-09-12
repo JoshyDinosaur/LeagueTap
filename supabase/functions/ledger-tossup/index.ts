@@ -4,24 +4,36 @@
 // out an interesting decision while it still matters instead of only
 // grading it after the fact.
 //
-// Signal, in priority order, per starter slot:
-//   1. This week's Sleeper projections, converted to points using the
-//      LEAGUE'S OWN scoring_settings (not Sleeper's generic pts_ppr/pts_std,
-//      which assume a standard scoring shape this league doesn't use --
-//      e.g. this league runs 6-point passing TDs and a TE reception bonus).
-//   2. Falls back to each player's trailing average from the last up-to-3
+// Signal, in priority order, per starter slot, per side (starter or bench
+// alternative) independently:
+//   1. If that player's game has already happened this week (a row exists
+//      in Sleeper's real stats endpoint), their REAL performance so far --
+//      this is a "half-decided" toss-up: one game already played (e.g. a
+//      Thursday-night starter), the other still ahead. Perfectly legitimate
+//      -- the decision genuinely hasn't resolved yet since the other side's
+//      game hasn't happened.
+//   2. Otherwise, this week's Sleeper projections, converted to points
+//      using the LEAGUE'S OWN scoring_settings (not Sleeper's generic
+//      pts_ppr/pts_std, which assume a standard scoring shape this league
+//      doesn't use -- e.g. this league runs 6-point passing TDs and a TE
+//      reception bonus).
+//   3. Falls back to each player's trailing average from the last up-to-3
 //      weeks stored in weekly_lineups when a player has no projection row
 //      (rare -- new call-ups, etc).
 // A starter/bench pair at the same roster slot within TOSSUP_MARGIN points
-// of each other (either direction) is a toss-up candidate.
+// of each other (either direction) is a toss-up candidate -- UNLESS both
+// sides have already played, in which case there's no decision left to
+// preview (that's ledger-report's job, not this one's).
 //
-// The projected point gap is ONLY used internally to decide what counts as
-// a toss-up -- it's never shown to the user or passed to Haiku. The write-up
-// instead leans on each player's projected usage/volume (targets for a
-// WR/TE, carries for a RB, attempts for a QB) since that's a concrete,
-// legible reason two options are close, without asserting a fantasy-point
-// forecast the app doesn't want to put a number on. K/DEF are excluded --
-// there's rarely an interesting volume story at those spots.
+// The point gap (real, projected, or a mix of the two) is ONLY used
+// internally to decide what counts as a toss-up -- it's never shown to the
+// user or passed to Haiku. The write-up instead leans on each player's
+// usage/volume (targets for a WR/TE, carries for a RB, attempts for a QB):
+// the ALREADY-PLAYED side's real recorded volume, the NOT-YET-PLAYED side's
+// projected volume -- a concrete, legible reason the two options are close,
+// without asserting a fantasy-point forecast the app doesn't want to put a
+// number on. K/DEF are excluded -- there's rarely an interesting volume
+// story at those spots.
 //
 // Multi-league: cron calls this with no league_id, and it fans out across
 // every row in tracked_leagues (see track-league) instead of one hardcoded
@@ -53,11 +65,16 @@ const TOSSUP_VOICE =
   "roster spot that are essentially a coin flip. You are NOT given fantasy point projections and " +
   "must never state, imply, or estimate one — no point totals, no percentages, no 'projects for X " +
   "points.' Ground the toss-up ONLY in the usage/volume comparison you're given (targets, carries, " +
-  "or attempts). Name both players, the position group, and the volume stat, and note it's a real " +
-  "toss-up -- don't declare a winner. Never write a position letter directly followed by a number " +
-  "(e.g. 'QB6', 'a WR2') to imply a ranking or tier -- that shorthand is ambiguous in fantasy " +
-  "football and you have no ranking data to back it anyway. One short sentence, tight enough to " +
-  "fit a small card.";
+  "or attempts). Sometimes BOTH sides are still ahead of their games (a pure projection-vs-projection " +
+  "coin flip); other times ONE side has already played and one hasn't -- you'll be told plainly which " +
+  "is which. In that mixed case, state the already-played side's volume as something that REALLY " +
+  "HAPPENED (past tense: 'carried it 14 times', 'saw 9 targets') and the other side's as still " +
+  "PROJECTED (future tense: 'projects for about 12 carries') -- never blur the two together as if " +
+  "both were equally certain, and never imply the already-played side's game is still ongoing. Name " +
+  "both players, the position group, and the volume stat, and note it's a real toss-up -- don't " +
+  "declare a winner. Never write a position letter directly followed by a number (e.g. 'QB6', 'a " +
+  "WR2') to imply a ranking or tier -- that shorthand is ambiguous in fantasy football and you have " +
+  "no ranking data to back it anyway. One short sentence, tight enough to fit a small card.";
 
 const TOSSUP_TOOL = {
   name: "ledger_entry",
@@ -70,7 +87,9 @@ const TOSSUP_TOOL = {
         type: "string",
         description:
           "One short sentence (under 25 words) framing the toss-up around the volume stat given -- " +
-          "never a fantasy point total or percentage.",
+          "never a fantasy point total or percentage. If one side already played, state their volume " +
+          "in the past tense (it really happened) and the other side's in the future/projected tense " +
+          "-- never as if both are equally certain.",
       },
     },
     required: ["headline", "text"],
@@ -188,7 +207,7 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
   }
 
   const projById: Record<string, number> = {};
-  const statsById: Record<string, Record<string, number>> = {};
+  const projStatsById: Record<string, Record<string, number>> = {};
   try {
     const projRes = await fetch(
       `https://api.sleeper.app/projections/nfl/${season}/${week}?season_type=regular`,
@@ -198,11 +217,34 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
       for (const r of rows ?? []) {
         if (r?.player_id && r?.stats) {
           projById[String(r.player_id)] = projectPoints(r.stats, scoring);
-          statsById[String(r.player_id)] = r.stats;
+          projStatsById[String(r.player_id)] = r.stats;
         }
       }
     }
   } catch (_) { /* projections are best-effort; fall back to trailing average */ }
+
+  // Real box-score stats for players whose game has ALREADY happened this
+  // week (e.g. a Thursday-night starter, evaluated mid-week) -- lets a
+  // toss-up be framed as one side's real, already-locked-in performance vs.
+  // the other side's still-ahead projection, instead of only ever comparing
+  // two projections. Same endpoint snapshot-lineups uses for actual stats.
+  const actualStatsById: Record<string, Record<string, number>> = {};
+  try {
+    const statsRes = await fetch(
+      `https://api.sleeper.app/stats/nfl/${season}/${week}?season_type=regular`,
+    );
+    if (statsRes.ok) {
+      const rows = await statsRes.json() as any[];
+      for (const r of rows ?? []) {
+        if (r?.player_id && r?.stats && Object.keys(r.stats).length > 0) {
+          actualStatsById[String(r.player_id)] = r.stats;
+        }
+      }
+    }
+  } catch (_) { /* best-effort */ }
+  function hasPlayed(id: string): boolean {
+    return !!actualStatsById[id];
+  }
 
   const { data: recentRows } = await supabase
     .from("weekly_lineups")
@@ -226,6 +268,19 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
     if (id in projById) return projById[id];
     return trailingAvg(id);
   }
+  // Real score (from actual stats) once a player's game has happened;
+  // projection/trailing-average otherwise. Lets the "is this still close"
+  // check reflect what's actually known once one side's game has resolved.
+  function pointsFor(id: string): number | null {
+    if (hasPlayed(id)) return projectPoints(actualStatsById[id], scoring);
+    return projectedFor(id);
+  }
+  // The volume number to show for this player -- their REAL recorded value
+  // if their game has happened, else their projected one.
+  function volFor(id: string, key: string): number | null {
+    const source = hasPlayed(id) ? actualStatsById[id] : projStatsById[id];
+    return source?.[key] ?? null;
+  }
 
   const allCandidates: Candidate[] = [];
 
@@ -241,18 +296,22 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
       const slot = nonBenchSlots[idx] ?? playerById[starterId]?.position ?? "FLEX";
       if (EXCLUDED_POSITIONS.has(slot)) return;
       const eligible = eligiblePositions(slot).filter((p) => !EXCLUDED_POSITIONS.has(p));
-      const starterProj = projectedFor(starterId);
+      const starterProj = pointsFor(starterId);
       if (starterProj == null) return;
 
       let best: { id: string; proj: number } | null = null;
       for (const benchId of benchIds) {
         const pos = playerById[benchId]?.position;
         if (!pos || !eligible.includes(pos)) continue;
-        const proj = projectedFor(benchId);
+        const proj = pointsFor(benchId);
         if (proj == null) continue;
         if (!best || proj > best.proj) best = { id: benchId, proj };
       }
       if (!best) return;
+
+      // Both games already happened -- there's no decision left to preview,
+      // that's ledger-report's job (grading), not this one's (previewing).
+      if (hasPlayed(starterId) && hasPlayed(best.id)) return;
 
       const margin = Math.abs(starterProj - best.proj);
       const bigEnough = Math.max(starterProj, best.proj) >= MIN_SIGNAL;
@@ -261,13 +320,24 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
         const benchName = playerById[best.id]?.name ?? "Unknown";
         const starterPos = playerById[starterId]?.position ?? null;
         const { key, label } = volumeStat(starterPos);
-        const starterVol = statsById[starterId]?.[key] ?? null;
-        const benchVol = statsById[best.id]?.[key] ?? null;
+        const starterVol = volFor(starterId, key);
+        const benchVol = volFor(best.id, key);
+        const starterPlayed = hasPlayed(starterId);
+        const benchPlayed = hasPlayed(best.id);
+
+        const side = (name: string, vol: number | null, played: boolean) =>
+          vol == null
+            ? `${name}'s ${label} are unknown`
+            : played
+            ? `${name} already recorded ${vol.toFixed(1)} ${label} in their game`
+            : `${name} projects for about ${vol.toFixed(1)} ${label} in their upcoming game`;
 
         const volPhrase =
           starterVol != null && benchVol != null
-            ? `${starterName} is projected for about ${starterVol.toFixed(1)} ${label} to ` +
-              `${benchName}'s ${benchVol.toFixed(1)} -- next to no gap in expected usage`
+            ? `${side(starterName, starterVol, starterPlayed)}; ${side(benchName, benchVol, benchPlayed)}` +
+              (starterPlayed || benchPlayed
+                ? " -- close enough that the still-unplayed side could still tip it either way"
+                : " -- next to no gap in expected usage")
             : `${starterName} and ${benchName} have nearly identical expected usage this week`;
 
         allCandidates.push({
@@ -285,8 +355,14 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
           margin,
           prompt:
             `${manager}'s ${slot} spot in Week ${week} is a real coin flip between the current ` +
-            `starter (${starterName}) and the top bench option (${benchName}). ${volPhrase}. Do not ` +
-            `mention or estimate fantasy points -- frame this purely around that usage comparison.`,
+            `starter (${starterName}) and the top bench option (${benchName}). ${volPhrase}.` +
+            (starterPlayed || benchPlayed
+              ? ` One side's game has already happened and the other's hasn't -- say what already ` +
+                `happened in the past tense and what's still ahead in the projected/future tense; ` +
+                `do not treat them as equally certain.`
+              : "") +
+            ` Do not mention or estimate fantasy points -- frame this purely around that usage ` +
+            `comparison.`,
         });
       }
     });
