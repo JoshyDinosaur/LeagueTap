@@ -69,11 +69,17 @@ const TOSSUP_VOICE =
   "any kind, for anything, ever. If one side has ALREADY played, their number is a real, " +
   "already-recorded count -- state it in the past tense (e.g. 'already logged 9 targets'). If a side " +
   "hasn't played yet, their number is a rounded projection -- state it in the future tense (e.g. " +
-  "'projects for about 12 carries'). When the two sides' numbers come out IDENTICAL, say so plainly " +
-  "using that shared number -- 'dead even at 9 carries,' 'tied at 12,' 'identical targets, 6 apiece' " +
-  "-- vary the phrasing each time, don't repeat the same stock line. When they differ, name both " +
-  "numbers and note how tight the gap is. Name both players and the position group, and note it's a " +
-  "real toss-up -- don't declare a winner. Never write a position letter directly followed by a " +
+  "'projects for about 12 carries'). A flex or super-flex slot can pit two DIFFERENT positions " +
+  "against each other (a running back's carries vs. a receiver's targets, say) -- when that happens " +
+  "each side keeps its OWN stat category, and you must NEVER call the two numbers 'identical' or " +
+  "'tied' just because they're close or even the same digit, since they're not measuring the same " +
+  "thing; instead say both usage numbers plainly and note the decision itself is close (e.g. 'projects " +
+  "for 12 carries -- against 11 expected targets on the other side, it's still a coin flip'). Only " +
+  "when BOTH sides share the exact same stat category and the same number should you call it a tie " +
+  "-- say so plainly using that shared number ('dead even at 9 carries,' 'tied at 12,' 'identical " +
+  "targets, 6 apiece') -- vary the phrasing each time, don't repeat the same stock line. Name both " +
+  "players and the position group, and note it's a real toss-up -- don't declare a winner. Never " +
+  "write a position letter directly followed by a " +
   "number (e.g. 'QB6', 'a WR2') to imply a ranking or tier -- that shorthand is ambiguous in fantasy " +
   "football and you have no ranking data to back it anyway. One short sentence, tight enough to fit " +
   "a small card.";
@@ -91,8 +97,10 @@ const TOSSUP_TOOL = {
           "One short sentence (under 25 words) framing the toss-up around the volume stat category " +
           "given -- never a fantasy point total, percentage, or any decimal/fractional number. Always " +
           "state both sides' given whole-number counts (past tense if already recorded, future/" +
-          "projected tense if not) -- and when they're the same number, say so plainly using that " +
-          "number instead of just calling it close.",
+          "projected tense if not). When both sides share the same stat category and the same " +
+          "number, say so plainly using that number instead of just calling it close. When the two " +
+          "sides have DIFFERENT stat categories (a flex/super-flex cross-position matchup), never " +
+          "call the numbers identical or tied -- state each one under its own category.",
       },
     },
     required: ["headline", "text"],
@@ -322,11 +330,20 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
         const starterName = playerById[starterId]?.name ?? "Unknown";
         const benchName = playerById[best.id]?.name ?? "Unknown";
         const starterPos = playerById[starterId]?.position ?? null;
-        const { key, label } = volumeStat(starterPos);
-        const starterVol = volFor(starterId, key);
-        const benchVol = volFor(best.id, key);
+        const benchPos = playerById[best.id]?.position ?? null;
+        // Each side's volume stat is picked from ITS OWN position -- a flex
+        // or super-flex slot can pit a RB against a WR/QB/TE, and crediting
+        // a receiver with "0 carries" (the starter's stat, forced onto a
+        // player who doesn't carry the ball) is nonsense. Only same-position
+        // pairs end up comparing the same category; cross-position pairs
+        // compare each player's own relevant stat instead.
+        const starterStat = volumeStat(starterPos);
+        const benchStat = volumeStat(benchPos);
+        const starterVol = volFor(starterId, starterStat.key);
+        const benchVol = volFor(best.id, benchStat.key);
         const starterPlayed = hasPlayed(starterId);
         const benchPlayed = hasPlayed(best.id);
+        const sameCategory = starterStat.key === benchStat.key;
 
         // Always round to a whole number before it ever reaches the prompt
         // -- Sleeper's projections are fractional by nature, but the Ledger
@@ -337,7 +354,7 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
         const starterVolRounded = starterVol != null ? Math.round(starterVol) : null;
         const benchVolRounded = benchVol != null ? Math.round(benchVol) : null;
 
-        const sideFact = (name: string, vol: number | null, played: boolean) =>
+        const sideFact = (name: string, vol: number | null, played: boolean, label: string) =>
           vol == null
             ? `${name}'s ${label} are unknown`
             : played
@@ -346,14 +363,19 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
 
         let volPhrase: string;
         if (starterVolRounded != null && benchVolRounded != null) {
-          const tied = starterVolRounded === benchVolRounded;
+          const tied = sameCategory && starterVolRounded === benchVolRounded;
           volPhrase =
-            `${sideFact(starterName, starterVolRounded, starterPlayed)}; ` +
-            `${sideFact(benchName, benchVolRounded, benchPlayed)}` +
+            `${sideFact(starterName, starterVolRounded, starterPlayed, starterStat.label)}; ` +
+            `${sideFact(benchName, benchVolRounded, benchPlayed, benchStat.label)}` +
             (tied
-              ? ` -- identical at ${starterVolRounded} ${label}; state plainly (in your own varied ` +
-                `words) that they're tied at that exact number, don't just call it "close"`
-              : ` -- a razor-thin gap between those two whole numbers`);
+              ? ` -- identical at ${starterVolRounded} ${starterStat.label}; state plainly (in your ` +
+                `own varied words) that they're tied at that exact number, don't just call it "close"`
+              : sameCategory
+              ? ` -- a razor-thin gap between those two whole numbers`
+              : ` -- different positions with different roles (${starterStat.label} vs. ` +
+                `${benchStat.label}), but projected close enough in value that it's a genuine toss-up ` +
+                `-- do not call these two numbers "equal" or "identical" since they're not the same ` +
+                `stat, just note both usage numbers and that the decision is close`);
         } else {
           volPhrase = `${starterName} and ${benchName} have nearly identical expected usage this week`;
         }
@@ -367,7 +389,7 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
           benchId: best.id,
           starterName,
           benchName,
-          volLabel: label,
+          volLabel: starterStat.label,
           starterVol,
           benchVol,
           margin,
