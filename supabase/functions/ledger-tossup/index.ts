@@ -62,19 +62,22 @@ const cors = {
 const TOSSUP_VOICE =
   "You are The Ledger — LeagueTap's receipts-keeper. Dry, deadpan, exact. For this entry you're " +
   "previewing a decision, not grading one that already happened: a manager has two options at one " +
-  "roster spot that are essentially a coin flip. You are NOT given fantasy point projections and " +
-  "must never state, imply, or estimate one — no point totals, no percentages, no 'projects for X " +
-  "points.' Ground the toss-up ONLY in the usage/volume comparison you're given (targets, carries, " +
-  "or attempts). Sometimes BOTH sides are still ahead of their games (a pure projection-vs-projection " +
-  "coin flip); other times ONE side has already played and one hasn't -- you'll be told plainly which " +
-  "is which. In that mixed case, state the already-played side's volume as something that REALLY " +
-  "HAPPENED (past tense: 'carried it 14 times', 'saw 9 targets') and the other side's as still " +
-  "PROJECTED (future tense: 'projects for about 12 carries') -- never blur the two together as if " +
-  "both were equally certain, and never imply the already-played side's game is still ongoing. Name " +
-  "both players, the position group, and the volume stat, and note it's a real toss-up -- don't " +
-  "declare a winner. Never write a position letter directly followed by a number (e.g. 'QB6', 'a " +
-  "WR2') to imply a ranking or tier -- that shorthand is ambiguous in fantasy football and you have " +
-  "no ranking data to back it anyway. One short sentence, tight enough to fit a small card.";
+  "roster spot that are essentially a coin flip. You are NEVER given a fantasy point projection and " +
+  "must never state, imply, or estimate one — no point totals, no percentages. You are also NEVER " +
+  "given a projected/expected number for a stat that hasn't happened yet, and must never state, " +
+  "imply, or invent one — no 'projects for about 12 carries,' no fractional or decimal figures of " +
+  "any kind, anywhere, for any player, ever. Ground the toss-up in the usage/volume CATEGORY you're " +
+  "given (targets, carries, or attempts) and how close the two sides are on it, described entirely " +
+  "in words — 'razor-edge,' 'next to nothing separating them,' 'a call worth watching,' or your own " +
+  "fresh phrasing each time; vary it, don't repeat the same stock phrase every card. If one side has " +
+  "ALREADY played, you WILL be given their real, already-recorded count for that stat as a whole " +
+  "number — that's a fact, not a projection, and you may state it plainly in the past tense (e.g. " +
+  "'already logged 9 targets'). The other side, still ahead of their game, gets no number at all — " +
+  "describe their side of the gap only in words, in the future tense, and make clear their game " +
+  "hasn't happened yet. Name both players and the position group, and note it's a real toss-up -- " +
+  "don't declare a winner. Never write a position letter directly followed by a number (e.g. 'QB6', " +
+  "'a WR2') to imply a ranking or tier -- that shorthand is ambiguous in fantasy football and you " +
+  "have no ranking data to back it anyway. One short sentence, tight enough to fit a small card.";
 
 const TOSSUP_TOOL = {
   name: "ledger_entry",
@@ -86,10 +89,11 @@ const TOSSUP_TOOL = {
       text: {
         type: "string",
         description:
-          "One short sentence (under 25 words) framing the toss-up around the volume stat given -- " +
-          "never a fantasy point total or percentage. If one side already played, state their volume " +
-          "in the past tense (it really happened) and the other side's in the future/projected tense " +
-          "-- never as if both are equally certain.",
+          "One short sentence (under 25 words) framing the toss-up around the volume stat category " +
+          "given -- never a fantasy point total, percentage, or any decimal/fractional number. A " +
+          "real, already-recorded whole-number count (when given) may be stated plainly in the past " +
+          "tense; a still-projected side gets described only in words (e.g. 'razor-edge,' 'a call " +
+          "worth watching'), in the future tense, with no number attached at all.",
       },
     },
     required: ["headline", "text"],
@@ -325,20 +329,31 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
         const starterPlayed = hasPlayed(starterId);
         const benchPlayed = hasPlayed(best.id);
 
-        const side = (name: string, vol: number | null, played: boolean) =>
-          vol == null
-            ? `${name}'s ${label} are unknown`
-            : played
-            ? `${name} already recorded ${vol.toFixed(1)} ${label} in their game`
-            : `${name} projects for about ${vol.toFixed(1)} ${label} in their upcoming game`;
+        // A real, already-recorded count is a fact and may be stated as a
+        // whole number. A still-projected count is never stated numerically
+        // -- Sleeper's projections are fractional by nature, and the Ledger
+        // never shows a decimal/floating-point value for anything, ever.
+        // Instead the still-projected side is described only in words, so
+        // there's nothing to round or fake-precision into a false number.
+        const playedFact = (name: string, vol: number | null) =>
+          vol == null ? `${name} has no recorded ${label} yet` : `${name} already logged ${Math.round(vol)} ${label}`;
 
-        const volPhrase =
-          starterVol != null && benchVol != null
-            ? `${side(starterName, starterVol, starterPlayed)}; ${side(benchName, benchVol, benchPlayed)}` +
-              (starterPlayed || benchPlayed
-                ? " -- close enough that the still-unplayed side could still tip it either way"
-                : " -- next to no gap in expected usage")
-            : `${starterName} and ${benchName} have nearly identical expected usage this week`;
+        let volPhrase: string;
+        if (starterPlayed && !benchPlayed) {
+          volPhrase =
+            `${playedFact(starterName, starterVol)} -- ${benchName}'s ${label} for their still-upcoming ` +
+            `game project to a razor-thin gap from that, close enough that their game could tip this ` +
+            `either way once it happens`;
+        } else if (benchPlayed && !starterPlayed) {
+          volPhrase =
+            `${playedFact(benchName, benchVol)} -- ${starterName}'s ${label} for their still-upcoming ` +
+            `game project to a razor-thin gap from that, close enough that their game could tip this ` +
+            `either way once it happens`;
+        } else {
+          volPhrase =
+            `${starterName} and ${benchName} project to a razor-thin, next-to-nothing gap in expected ` +
+            `${label} this week -- a genuine coin flip on paper`;
+        }
 
         allCandidates.push({
           roster_id: m.roster_id,
@@ -357,12 +372,13 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
             `${manager}'s ${slot} spot in Week ${week} is a real coin flip between the current ` +
             `starter (${starterName}) and the top bench option (${benchName}). ${volPhrase}.` +
             (starterPlayed || benchPlayed
-              ? ` One side's game has already happened and the other's hasn't -- say what already ` +
-                `happened in the past tense and what's still ahead in the projected/future tense; ` +
-                `do not treat them as equally certain.`
-              : "") +
-            ` Do not mention or estimate fantasy points -- frame this purely around that usage ` +
-            `comparison.`,
+              ? ` One side's game has already happened (state their count as a real whole-number ` +
+                `fact, past tense) and the other's hasn't (describe their side in words only, future ` +
+                `tense, with no number attached).`
+              : ` Neither side has played yet -- describe the closeness entirely in words, with no ` +
+                `number for either side.`) +
+            ` Do not mention, estimate, or invent a fantasy point total, percentage, or any decimal ` +
+            `figure for anything.`,
         });
       }
     });

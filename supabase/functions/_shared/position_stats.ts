@@ -58,7 +58,10 @@ export function statLineFor(
   const lines: StatLine[] = [];
   for (const f of fields) {
     const v = rawStats[f.key];
-    if (typeof v === "number" && v !== 0) lines.push({ key: f.key, label: f.label, value: v });
+    // Real box-score counts for these categories are always whole numbers
+    // in practice, but round defensively anyway -- the Ledger never shows a
+    // floating-point value, full stop.
+    if (typeof v === "number" && v !== 0) lines.push({ key: f.key, label: f.label, value: Math.round(v) });
   }
   return lines.slice(0, MAX_STATS_SHOWN);
 }
