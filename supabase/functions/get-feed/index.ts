@@ -29,8 +29,8 @@ const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 // Bump when the blurb prompt/persona voices change — folds into the cache key
 // so existing cached blurbs regenerate with the new voice.
 const BLURB_VERSION = "v4";
-const TEAM_BLURBS = 10;     // team items that get an AI blurb
-const LEAGUE_BLURBS = 6;    // league items that get an AI blurb
+const TEAM_BLURBS = 6;      // team items that get an AI blurb (lowered from 10)
+const LEAGUE_BLURBS = 4;    // league items that get an AI blurb (lowered from 6)
 const CANDIDATE_POOL_MULTIPLIER = 2; // score more items than we show, then
                                      // keep only the highest-relevance ones
 const MAX_CONCURRENCY = 8;  // parallel Anthropic calls
@@ -267,13 +267,13 @@ async function generateBlurb(
     ? `It is the OFFSEASON — games are months away. Do NOT mention upcoming matchups, this-week ` +
       `opponents, weather, or start/sit decisions. `
     : ``;
-  const prompt =
+  // Static per-(persona, offseason) instructions -- identical across every
+  // call sharing those two, so it's the cacheable system prefix. Only the
+  // facts specific to THIS article + THIS viewer's roster go in the user
+  // message.
+  const systemPrompt =
     `${persona.voice}\n\n` +
-    `AUTHORITATIVE roster context — current and correct; TRUST IT over the article and over your ` +
-    `own assumptions about which team a player is on or their role: ${roster}.\n` +
-    `${mentionedLine}${league}\n` +
-    `Headline: ${headline}\nDetails: ${body}\n\n` +
-    `Your take is about the rostered player(s) above and ONLY them. Any OTHER athletes named are ` +
+    `Any OTHER athletes named in an article besides the rostered player(s) you're given are ` +
     `comparisons or context — never assume they are teammates, share a role, a draft class, or a ` +
     `situation with your player. State no relationship the context doesn't make explicit.\n\n` +
     `${offseasonRule}The manager ALREADY sees the headline — do NOT restate it. First set "subject" ` +
@@ -288,6 +288,12 @@ async function generateBlurb(
     `position+number shorthand. ` +
     `Score relevance honestly (most news is low). Call the fantasy_take tool.`;
 
+  const prompt =
+    `AUTHORITATIVE roster context — current and correct; TRUST IT over the article and over your ` +
+    `own assumptions about which team a player is on or their role: ${roster}.\n` +
+    `${mentionedLine}${league}\n` +
+    `Headline: ${headline}\nDetails: ${body}`;
+
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -299,8 +305,9 @@ async function generateBlurb(
       model: ANTHROPIC_MODEL,
       max_tokens: 350,
       temperature: persona.temperature,
-      tools: [BLURB_TOOL],
+      tools: [{ ...BLURB_TOOL, cache_control: { type: "ephemeral" } }],
       tool_choice: { type: "tool", name: "fantasy_take" },
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: prompt }],
     }),
   });

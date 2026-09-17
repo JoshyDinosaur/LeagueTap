@@ -46,21 +46,16 @@ select cron.schedule(
   $$
 );
 
--- 3) Pre-warm the LeagueTap home feed ~5 min after each ingest, so the
---    league blurbs are cached before anyone opens the app. prewarm-feeds
---    loops every tracked league itself -- one job covers all of them.
-select cron.schedule(
-  'leaguetap-prewarm-feeds',
-  '5,20,35,50 * * * *',
-  $$
-  select net.http_post(
-    url := 'https://ducyqpybwyfoicylfflq.supabase.co/functions/v1/prewarm-feeds',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer sb_publishable_08sa51Ur1UDfT9iuauYpWw_WSU3uRq0"}'::jsonb,
-    body := '{}'::jsonb
-  );
-  $$
-);
-
+-- 3) [removed] Pre-warming the LeagueTap home feed on a timer (prewarm-feeds,
+--    every 15 min) force-generated Haiku blurbs for every tracked league
+--    around the clock regardless of whether anyone was using the app -- a
+--    fixed cost floor unrelated to actual usage, and the single biggest
+--    driver of a runaway Anthropic bill. get-league-feed now generates
+--    on-demand instead, the first time any league's tab is actually opened
+--    after fresh news; every open after that is a cache hit. See
+--    get-league-feed/index.ts for the other half of this fix (its Haiku
+--    call is also now de-duplicated across leagues that share a player,
+--    since it no longer bakes a specific manager/team name into the take).
 
 -- 4) Poll lineups (starters + bench + live points) every 5 minutes for
 --    ~1.5-2 hours after each game window typically wraps, so "Who's Starting"

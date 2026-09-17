@@ -149,9 +149,13 @@ async function writeEntry(c: Candidate): Promise<{ headline: string; text: strin
       model: ANTHROPIC_MODEL,
       max_tokens: 160,
       temperature: 0.5,
-      tools: [TOSSUP_TOOL],
+      // TOSSUP_VOICE and the tool schema are identical on every call this
+      // function ever makes -- cached so repeat runs (and the several
+      // candidates within one run) pay full price only once.
+      tools: [{ ...TOSSUP_TOOL, cache_control: { type: "ephemeral" } }],
       tool_choice: { type: "tool", name: "ledger_entry" },
-      messages: [{ role: "user", content: `${TOSSUP_VOICE}\n\n${c.prompt}\n\nCall the ledger_entry tool.` }],
+      system: [{ type: "text", text: TOSSUP_VOICE, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: `${c.prompt}\n\nCall the ledger_entry tool.` }],
     }),
   });
   if (!res.ok) return null;
