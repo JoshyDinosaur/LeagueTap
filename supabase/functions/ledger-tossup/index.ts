@@ -22,8 +22,13 @@
 //      (rare -- new call-ups, etc).
 // A starter/bench pair at the same roster slot within TOSSUP_MARGIN points
 // of each other (either direction) is a toss-up candidate -- UNLESS both
-// sides have already played, in which case there's no decision left to
-// preview (that's ledger-report's job, not this one's).
+// sides have already played (there's no decision left to preview, that's
+// ledger-report's job, not this one's), OR the two sides use the same
+// volume category (same position) and one side's role is clearly bigger
+// than VOLUME_CLOSE_RATIO allows -- a close POINT projection alone isn't a
+// real decision if it's a 15-carry bellcow vs. a 6-carry committee back;
+// that's an easy call regardless of how the projected points happened to
+// land, not a coin flip a manager actually has to sit with.
 //
 // The point gap (real, projected, or a mix of the two) is ONLY used
 // internally to decide what counts as a toss-up -- it's never shown to the
@@ -53,6 +58,16 @@ const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const TOSSUP_MARGIN = 2.5; // projected-point gap at/under which a slot counts as a toss-up (internal only)
 const MIN_SIGNAL = 3; // ignore pairs where both sides project near-zero (bye weeks, etc.)
 const MAX_PER_LEAGUE = 6; // cap Haiku calls per run -- closest calls first
+// A close projected-point total isn't by itself a real decision -- a 15-carry
+// bellcow and a 6-carry committee back can land within a couple of projected
+// points of each other while one side's role is obviously bigger. When both
+// sides use the SAME volume category (same position, or a flex pair that
+// happens to match), the lesser side's volume must be at least this fraction
+// of the greater side's, or there's no real dilemma to preview. Doesn't need
+// to be a nail-biter -- 0.5 lets a wide "general range" through (e.g. 10 vs
+// 14 carries passes; 6 vs 15 doesn't) while still filtering out lopsided
+// workloads that only look close because of how the points happened to add up.
+const VOLUME_CLOSE_RATIO = 0.5;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -357,6 +372,18 @@ async function tossupsForLeague(supabase: Supabase, leagueId: string) {
         // one is a rounded estimate (future tense).
         const starterVolRounded = starterVol != null ? Math.round(starterVol) : null;
         const benchVolRounded = benchVol != null ? Math.round(benchVol) : null;
+
+        // A close point projection alone doesn't make this a real decision --
+        // when both sides share the same volume category, veto the pair if
+        // one side's role is clearly bigger (see VOLUME_CLOSE_RATIO). Skip
+        // this check for cross-position pairs (different categories aren't
+        // directly comparable; the point-margin check already did the work
+        // there) and skip it when either side's volume is unknown.
+        if (sameCategory && starterVolRounded != null && benchVolRounded != null) {
+          const lo = Math.min(starterVolRounded, benchVolRounded);
+          const hi = Math.max(starterVolRounded, benchVolRounded);
+          if (hi > 0 && lo / hi < VOLUME_CLOSE_RATIO) return;
+        }
 
         const sideFact = (name: string, vol: number | null, played: boolean, label: string) =>
           vol == null
